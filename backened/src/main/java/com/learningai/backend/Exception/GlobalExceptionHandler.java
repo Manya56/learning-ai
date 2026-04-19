@@ -1,4 +1,4 @@
-package com.learningai.backend.Exception;
+package com.learningai.backend.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

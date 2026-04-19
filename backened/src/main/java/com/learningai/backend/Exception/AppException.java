@@ -1,4 +1,4 @@
-package com.learningai.backend.Exception;
+package com.learningai.backend.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
