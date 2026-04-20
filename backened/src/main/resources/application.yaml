@@ -41,7 +41,7 @@ jwt:
   expiry-ms: ${JWT_EXPIRY_MS}
   refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS}
 
-claude:
+groq:
   api-key: ${CLAUDE_API_KEY}
   model: ${CLAUDE_MODEL}
 

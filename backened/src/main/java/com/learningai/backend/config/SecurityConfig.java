@@ -79,4 +79,19 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(12);
     }
+
+    @Bean
+    public io.swagger.v3.oas.models.OpenAPI openAPI() {
+        return new io.swagger.v3.oas.models.OpenAPI()
+                .addSecurityItem(new io.swagger.v3.oas.models.security
+                        .SecurityRequirement().addList("bearerAuth"))
+                .components(new io.swagger.v3.oas.models.Components()
+                        .addSecuritySchemes("bearerAuth",
+                                new io.swagger.v3.oas.models.security.SecurityScheme()
+                                        .name("bearerAuth")
+                                        .type(io.swagger.v3.oas.models.security
+                                                .SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")));
+    }
 }
