@@ -26,6 +26,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.session:spring-session-data-redis'
+    
+    // WebClient for Claude API calls
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
 
     // Database
     runtimeOnly 'org.postgresql:postgresql'
