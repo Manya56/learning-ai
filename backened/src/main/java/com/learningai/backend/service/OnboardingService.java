@@ -163,7 +163,7 @@ public class OnboardingService {
                 .hintUsageRate(p.getHintUsageRate())
                 .overallAccuracy(p.getOverallAccuracy())
                 .totalQuestionsAttempted(p.getTotalQuestionsAttempted())
-                .currentStreak(p.getCurrentStreak())
+                .currentStreak(p.getCurrentDayStreak())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .build();
