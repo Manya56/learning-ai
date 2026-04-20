@@ -23,68 +23,108 @@ public class LearningProfile {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // Link to User — one profile per user
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    // What the user wants to learn
+    // ── Goal ──────────────────────────────────────────────────────────────
     @Column(nullable = false)
     private String goal;
 
-    // e.g. "Learn DSA", "Master Spring Boot", "Crack system design"
     @Column(nullable = false)
     private String goalDescription;
 
-    // Primary language for content delivery
+    // ── Language ──────────────────────────────────────────────────────────
     @Column(nullable = false)
     private String preferredLanguage;
 
-    // EASY, MEDIUM, HARD — set after knowledge quiz
+    // ── Difficulty: EASY / MEDIUM / HARD ──────────────────────────────────
     @Column(nullable = false)
     private String currentDifficulty;
 
-    // Learning style inferred from behavior: VISUAL, READING, PRACTICE
-    @Column
+    // ── Learning style: VISUAL / READING / PRACTICE ───────────────────────
+    @Column(nullable = false)
     private String learningStyle;
 
-    // JSONB — list of weak concept IDs with scores
-    // e.g. {"arrays": 0.3, "recursion": 0.2}
+    // ── Concept maps (JSONB) ──────────────────────────────────────────────
+    // {"arrays": 0.3, "recursion": 0.2}  — score 0.0 to 1.0
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Double> weakConcepts;
 
-    // JSONB — list of strong concept IDs with scores
-    // e.g. {"loops": 0.9, "variables": 0.95}
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Double> strongConcepts;
 
-    // JSONB — topics in the roadmap
+    // ── Roadmap ───────────────────────────────────────────────────────────
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private List<String> roadmapTopics;
 
-    // Average time per question in milliseconds
-    @Column
+    // Index of current topic in roadmapTopics list
+    @Column(nullable = false)
+    private Integer currentTopicIndex;
+
+    // ── Behavioral stats ──────────────────────────────────────────────────
+
+    // Rolling average time per question in ms
+    @Column(nullable = false)
     private Long avgTimePerQuestionMs;
 
-    // Ratio of hints used vs total questions (0.0 to 1.0)
-    @Column
+    // 0.0 to 1.0 — hints used / total questions
+    @Column(nullable = false)
     private Double hintUsageRate;
 
-    // Overall accuracy across all attempts (0.0 to 1.0)
-    @Column
+    // 0.0 to 1.0 — correct / total attempts
+    @Column(nullable = false)
     private Double overallAccuracy;
 
-    // Total questions attempted
-    @Column
+    // Total questions attempted across all sessions
+    @Column(nullable = false)
     private Integer totalQuestionsAttempted;
 
-    // Current learning streak in days
-    @Column
-    private Integer currentStreak;
+    // Consecutive correct answers in current session
+    @Column(nullable = false)
+    private Integer currentCorrectStreak;
 
+    // Streak of days with activity
+    @Column(nullable = false)
+    private Integer currentDayStreak;
+
+    @Column
+    private Instant lastActiveAt;
+
+    // ── Style inference counters ───────────────────────────────────────────
+    // These increment based on behavior and drive style detection
+
+    // How many times user re-read explanations
+    @Column(nullable = false)
+    private Integer explanationReadCount;
+
+    // How many times user asked for hints
+    @Column(nullable = false)
+    private Integer hintRequestCount;
+
+    // How many coding problems attempted vs MCQ
+    @Column(nullable = false)
+    private Integer codingAttemptsCount;
+
+    // How many MCQ attempts
+    @Column(nullable = false)
+    private Integer mcqAttemptsCount;
+
+    // ── Difficulty adjustment counters ────────────────────────────────────
+    // Track recent performance for sliding window difficulty change
+
+    // Correct answers in last 10 questions
+    @Column(nullable = false)
+    private Integer recentCorrectCount;
+
+    // Total of last 10 questions window
+    @Column(nullable = false)
+    private Integer recentWindowSize;
+
+    // ── Timestamps ────────────────────────────────────────────────────────
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -96,14 +136,24 @@ public class LearningProfile {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
-        if (weakConcepts == null)   weakConcepts = Map.of();
-        if (strongConcepts == null) strongConcepts = Map.of();
-        if (roadmapTopics == null)  roadmapTopics = List.of();
-        if (avgTimePerQuestionMs == null) avgTimePerQuestionMs = 0L;
-        if (hintUsageRate == null)        hintUsageRate = 0.0;
-        if (overallAccuracy == null)      overallAccuracy = 0.0;
+        lastActiveAt = now;
+        if (weakConcepts == null)            weakConcepts = Map.of();
+        if (strongConcepts == null)          strongConcepts = Map.of();
+        if (roadmapTopics == null)           roadmapTopics = List.of();
+        if (currentTopicIndex == null)       currentTopicIndex = 0;
+        if (avgTimePerQuestionMs == null)    avgTimePerQuestionMs = 0L;
+        if (hintUsageRate == null)           hintUsageRate = 0.0;
+        if (overallAccuracy == null)         overallAccuracy = 0.0;
         if (totalQuestionsAttempted == null) totalQuestionsAttempted = 0;
-        if (currentStreak == null)        currentStreak = 0;
+        if (currentCorrectStreak == null)    currentCorrectStreak = 0;
+        if (currentDayStreak == null)        currentDayStreak = 0;
+        if (explanationReadCount == null)    explanationReadCount = 0;
+        if (hintRequestCount == null)        hintRequestCount = 0;
+        if (codingAttemptsCount == null)     codingAttemptsCount = 0;
+        if (mcqAttemptsCount == null)        mcqAttemptsCount = 0;
+        if (recentCorrectCount == null)      recentCorrectCount = 0;
+        if (recentWindowSize == null)        recentWindowSize = 0;
+        if (learningStyle == null)           learningStyle = "PRACTICE";
     }
 
     @PreUpdate
