@@ -1,2 +1,1 @@
-select *
-from learning_profiles
+SELECT name, difficulty_level, estimated_minutes FROM concepts ORDER BY order_index LIMIT 10;
