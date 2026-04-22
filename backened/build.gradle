@@ -45,6 +45,12 @@ dependencies {
     // Dotenv — load .env file into Spring (manually added)
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
+    // Web Scraping
+    implementation 'org.jsoup:jsoup:1.18.1'
+    
+    // For URL validation
+    implementation 'commons-validator:commons-validator:1.8.0'
+
 	// Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

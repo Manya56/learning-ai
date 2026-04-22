@@ -10,6 +10,8 @@ import com.learningai.backend.entity.User;
 import com.learningai.backend.exception.AppException;
 import com.learningai.backend.repository.LearningProfileRepository;
 import com.learningai.backend.repository.UserRepository;
+import com.learningai.backend.service.scraper.ContentPipelineService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ public class OnboardingService {
     private final LearningProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final AiService aiService;
+    private final ContentPipelineService contentPipelineService;
+
 
 
     // ─── Step 1: Generate knowledge quiz ────────────────────────────────────
@@ -99,6 +103,16 @@ public class OnboardingService {
 
         profile = profileRepository.save(profile);
         log.info("Learning profile created for user: {}", userId);
+
+
+        // At the end of completeOnboarding(), after saving profile:
+        // Fire async content bootstrap — doesn't block response
+        contentPipelineService.bootstrapTopicContent(
+            onboardingRequest.getGoal()
+        );
+        
+        log.info("Content pipeline triggered for goal: {}",
+                onboardingRequest.getGoal());
 
         return OnboardingResponse.builder()
                 .profileId(profile.getId())
