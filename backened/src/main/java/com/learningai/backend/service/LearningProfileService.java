@@ -42,19 +42,19 @@ public class LearningProfileService {
         LearningProfile p = getProfileOrThrow(userId);
 
         // Top 3 weak concepts (lowest scores first)
-        List<Map.Entry<String, Double>> top3Weak = p.getWeakConcepts()
-                .entrySet().stream()
-                .sorted(Map.Entry.comparingByValue())
-                .limit(3)
-                .collect(Collectors.toList());
-
-        // Top 3 strong concepts (highest scores first)
-        List<Map.Entry<String, Double>> top3Strong = p.getStrongConcepts()
-                .entrySet().stream()
-                .sorted(Map.Entry.<String, Double>comparingByValue()
-                        .reversed())
-                .limit(3)
-                .collect(Collectors.toList());
+        List<ProfileStatsResponse.ConceptScore> top3Weak = p.getWeakConcepts()
+            .entrySet().stream()
+            .sorted(Map.Entry.comparingByValue())
+            .limit(3)
+            .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
+        
+        List<ProfileStatsResponse.ConceptScore> top3Strong = p.getStrongConcepts()
+            .entrySet().stream()
+            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+            .limit(3)
+            .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
 
         // Current topic name
         String currentTopic = "Not started";
