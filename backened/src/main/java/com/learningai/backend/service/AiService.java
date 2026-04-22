@@ -2,6 +2,8 @@ package com.learningai.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learningai.backend.dto.response.EvaluationResult;
+import com.learningai.backend.dto.response.ProblemResponse;
 import com.learningai.backend.dto.response.QuizQuestionResponse;
 import com.learningai.backend.entity.QuizSession;
 
@@ -283,6 +285,260 @@ public class AiService {
         } catch (Exception e) {
             log.error("Failed to parse concept quiz JSON: {}", e.getMessage());
             throw new RuntimeException("Failed to parse quiz response");
+        }
+    }
+
+    // ─── Generate a practice problem (topic-agnostic) ─────────────────────
+
+    public ProblemResponse generateProblem(
+            String conceptName,
+            String topicGoal,
+            String difficulty,
+            String learningStyle) {
+    
+        // Determine problem type based on topic
+        // Code topics → CODING, Math/Science → MATH, Everything else → WRITTEN
+        String problemType = inferProblemType(topicGoal);
+    
+        String styleGuide = switch (learningStyle) {
+            case "PRACTICE" -> "Give a direct hands-on problem. Minimal explanation.";
+            case "READING"  -> "Include context and background before the problem.";
+            case "VISUAL"   -> "Use a scenario or real-world analogy to frame the problem.";
+            default         -> "Give a clear, direct problem statement.";
+        };
+    
+        String typeGuide = switch (problemType) {
+            case "CODING" -> """
+                    Include:
+                    - problem_statement: clear description
+                    - starter_code: skeleton in the requested language
+                    - test_cases: array of {input, expected_output} (3 cases)
+                    - constraints: time/space complexity hints
+                    """;
+            case "MATH" -> """
+                    Include:
+                    - problem_statement: the mathematical problem
+                    - starter_code: show the formula structure or steps to fill
+                    - test_cases: array of {input, expected_output} (2 cases)
+                    - constraints: allowed methods or theorems
+                    """;
+            default -> """
+                    Include:
+                    - problem_statement: a thought-provoking question or scenario
+                    - starter_code: a response template or outline to fill in
+                    - test_cases: array of {criteria, expected_quality} (2 evaluation criteria)
+                    - constraints: word limit or key points that must be covered
+                    """;
+        };
+    
+        String systemPrompt = """
+            You are an expert educator creating practice problems.
+            
+            Generate ONE practice problem for the given concept.
+            
+            Style: %s
+            Problem format: %s
+            Difficulty: %s
+            
+            STRICT OUTPUT RULES:
+            - Return ONLY valid JSON
+            - DO NOT use markdown (no ```json)
+            - DO NOT include explanations outside JSON
+            - ALL string values must be SINGLE LINE
+            - Replace line breaks with \\n inside strings
+            - Ensure JSON is parsable by Jackson
+            - Do NOT include unescaped newline characters
+            
+            RESPONSE FORMAT:
+            {
+              "problem_statement": "single line string",
+              "problem_type": "%s",
+              "language": "java",
+              "starter_code": "single line string",
+              "test_cases": [
+                {"input": "single line", "expected_output": "single line"}
+              ],
+              "constraints": "single line string",
+              "hints": ["hint1", "hint2", "hint3"]
+            }
+            """.formatted(styleGuide, typeGuide, difficulty, problemType);
+
+    
+        String userMessage = "Topic: %s. Concept: %s. Difficulty: %s."
+                .formatted(topicGoal, conceptName, difficulty);
+    
+        String raw = call(systemPrompt, userMessage);
+        return parseProblemResponse(raw, conceptName, difficulty, problemType);
+    }
+    
+    // ─── Evaluate a user's submission (topic-agnostic) ────────────────────
+    
+    public EvaluationResult evaluateSubmission(
+            String problemStatement,
+            String userSubmission,
+            String problemType,
+            String language,
+            String conceptName) {
+    
+        String evaluationGuide = switch (problemType) {
+            case "CODING" -> """
+                    Evaluate the code for:
+                    1. Correctness — does it solve the problem?
+                    2. Time complexity — is it optimal?
+                    3. Edge cases — handled properly?
+                    4. Code quality — clean, readable?
+                    5. Test case results — which pass/fail?
+                    """;
+            case "MATH" -> """
+                    Evaluate the solution for:
+                    1. Correct method/formula used?
+                    2. Steps shown clearly?
+                    3. Final answer correct?
+                    4. Edge cases considered?
+                    """;
+            default -> """
+                    Evaluate the written response for:
+                    1. Does it address the core question?
+                    2. Accuracy of facts/concepts?
+                    3. Clarity and structure?
+                    4. Depth of understanding shown?
+                    5. Key points covered?
+                    """;
+        };
+    
+        String systemPrompt = """
+                You are an expert evaluator and educator.
+                Evaluate the student's submission fairly but rigorously.
+                
+                %s
+                
+                Score 0-10 where:
+                10 = perfect, 8-9 = excellent, 6-7 = good,
+                4-5 = partial, 2-3 = poor, 0-1 = incorrect/blank
+                
+                IMPORTANT: Respond ONLY with valid JSON. No markdown.
+                {
+                  "score": 7,
+                  "passed": true,
+                  "strengths": "What they did well",
+                  "issues": "What was wrong or missing",
+                  "suggestions": "How to improve",
+                  "corrected_solution": "The ideal solution",
+                  "line_feedback": [
+                    {"line": "specific line or point", "comment": "feedback"}
+                  ]
+                }
+                """.formatted(evaluationGuide);
+    
+        String userMessage = """
+                Problem: %s
+                
+                Student's %s submission:
+                %s
+                
+                Concept being tested: %s
+                """.formatted(problemStatement, language, userSubmission, conceptName);
+    
+        String raw = call(systemPrompt, userMessage);
+        return parseEvaluationResult(raw);
+    }
+    
+    // ─── Infer problem type from topic goal ───────────────────────────────
+    
+    private String inferProblemType(String topicGoal) {
+        if (topicGoal == null) return "WRITTEN";
+        String lower = topicGoal.toLowerCase();
+    
+        boolean isCoding = lower.contains("dsa") ||
+                           lower.contains("algorithm") ||
+                           lower.contains("programming") ||
+                           lower.contains("java") ||
+                           lower.contains("python") ||
+                           lower.contains("spring") ||
+                           lower.contains("coding") ||
+                           lower.contains("data structure") ||
+                           lower.contains("system design") ||
+                           lower.contains("kotlin");
+    
+        boolean isMath   = lower.contains("math") ||
+                           lower.contains("calculus") ||
+                           lower.contains("statistics") ||
+                           lower.contains("physics") ||
+                           lower.contains("linear algebra") ||
+                           lower.contains("probability");
+    
+        if (isCoding) return "CODING";
+        if (isMath)   return "MATH";
+        return "WRITTEN";
+    }
+    
+    // ─── Parse helpers ────────────────────────────────────────────────────
+    
+    private ProblemResponse parseProblemResponse(String raw,
+                                                  String conceptName,
+                                                  String difficulty,
+                                                  String problemType) {
+        try {
+            String cleaned = cleanJson(raw);
+            JsonNode root  = objectMapper.readTree(cleaned);
+    
+            List<ProblemResponse.TestCase> testCases = new ArrayList<>();
+            for (JsonNode tc : root.path("test_cases")) {
+                testCases.add(ProblemResponse.TestCase.builder()
+                        .input(tc.path("input").asText())
+                        .expectedOutput(tc.path("expected_output")
+                                .asText(tc.path("expected_quality").asText()))
+                        .build());
+            }
+    
+            List<String> hints = new ArrayList<>();
+            root.path("hints").forEach(h -> hints.add(h.asText()));
+    
+            return ProblemResponse.builder()
+                    .conceptName(conceptName)
+                    .difficulty(difficulty)
+                    .problemType(root.path("problem_type")
+                            .asText(problemType))
+                    .language(root.path("language").asText("text"))
+                    .problemStatement(root.path("problem_statement").asText())
+                    .starterCode(root.path("starter_code").asText())
+                    .testCases(testCases)
+                    .constraints(root.path("constraints").asText())
+                    .hints(hints)
+                    .build();
+    
+        } catch (Exception e) {
+            log.error("Failed to parse problem response: {}", e.getMessage());
+            throw new RuntimeException("Failed to parse problem from AI");
+        }
+    }
+    
+    private EvaluationResult parseEvaluationResult(String raw) {
+        try {
+            String cleaned = cleanJson(raw);
+            JsonNode root  = objectMapper.readTree(cleaned);
+    
+            List<EvaluationResult.LineFeedback> lineFeedback = new ArrayList<>();
+            for (JsonNode lf : root.path("line_feedback")) {
+                lineFeedback.add(EvaluationResult.LineFeedback.builder()
+                        .line(lf.path("line").asText())
+                        .comment(lf.path("comment").asText())
+                        .build());
+            }
+    
+            return EvaluationResult.builder()
+                    .score(root.path("score").asInt())
+                    .passed(root.path("passed").asBoolean())
+                    .strengths(root.path("strengths").asText())
+                    .issues(root.path("issues").asText())
+                    .suggestions(root.path("suggestions").asText())
+                    .correctedSolution(root.path("corrected_solution").asText())
+                    .lineFeedback(lineFeedback)
+                    .build();
+    
+        } catch (Exception e) {
+            log.error("Failed to parse evaluation result: {}", e.getMessage());
+            throw new RuntimeException("Failed to parse evaluation from AI");
         }
     }
 }
