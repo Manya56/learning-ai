@@ -4,11 +4,19 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
 public class ProfileStatsResponse {
+
+    @lombok.Data
+    @lombok.Builder
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class ConceptScore {
+        private String concept;
+        private Double score;
+    }
 
     private String currentDifficulty;
     private String learningStyle;
@@ -20,10 +28,8 @@ public class ProfileStatsResponse {
     private Integer currentCorrectStreak;
 
     // Top 3 weakest concepts
-    private List<Map.Entry<String, Double>> top3WeakConcepts;
-
-    // Top 3 strongest concepts
-    private List<Map.Entry<String, Double>> top3StrongConcepts;
+    private List<ConceptScore> top3WeakConcepts;
+    private List<ConceptScore> top3StrongConcepts;
 
     // Current topic in roadmap
     private String currentTopic;
