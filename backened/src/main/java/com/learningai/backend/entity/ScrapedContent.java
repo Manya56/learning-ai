@@ -2,6 +2,7 @@ package com.learningai.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Array;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -75,10 +76,25 @@ public class ScrapedContent {
     @Column
     private Instant lastAccessedAt;
 
+    @Column(name = "embedding", columnDefinition = "vector(384)")
+    private float[] embedding;
+
+
+    // 768-dim vector for nomic-embed-text
+    // 1536-dim for OpenAI text-embedding-3-small
+    // Which model generated this embedding
+    @Column
+    private String embeddingModel;
+    
+    // When it was embedded
+    @Column
+    private Instant embeddedAt;
+
     @PrePersist
     public void prePersist() {
         scrapedAt = Instant.now();
         if (embedded == null)        embedded       = false;
         if (retrievalCount == null)  retrievalCount = 0;
+        if (embeddingModel == null)  embeddingModel = "";
     }
 }
