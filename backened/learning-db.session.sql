@@ -1,1 +1,1 @@
-SELECT name, difficulty_level, estimated_minutes FROM concepts ORDER BY order_index LIMIT 10;
+SELECT * from scraped_content;

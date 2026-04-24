@@ -51,6 +51,17 @@ dependencies {
     // For URL validation
     implementation 'commons-validator:commons-validator:1.8.0'
 
+    // pgvector Java type support
+    implementation 'com.pgvector:pgvector:0.1.4'
+
+    // Add DJL (Deep Java Library)
+    implementation platform('ai.djl:bom:0.27.0')
+    implementation 'ai.djl:api:0.27.0'
+    implementation 'ai.djl.huggingface:tokenizers:0.27.0'
+    implementation 'ai.djl.pytorch:pytorch-engine:0.27.0'
+    implementation 'ai.djl.pytorch:pytorch-model-zoo:0.27.0'
+
+
 	// Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
