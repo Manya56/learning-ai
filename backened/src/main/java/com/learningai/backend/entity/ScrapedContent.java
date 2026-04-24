@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Array;
 
+import com.pgvector.PGvector;
+
 import java.time.Instant;
 import java.util.UUID;
 

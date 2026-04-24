@@ -11,44 +11,47 @@ import java.util.UUID;
 
 @Repository
 public interface ContentEmbeddingRepository
-                extends JpaRepository<ContentEmbedding, UUID> {
+              extends JpaRepository<ContentEmbedding, UUID> {
 
-        boolean existsByContentIdAndChunkIndex(UUID contentId, int chunkIndex);
+       boolean existsByContentIdAndChunkIndex(UUID contentId, int chunkIndex);
 
-        List<ContentEmbedding> findByConceptTagIgnoreCase(String conceptTag);
+       List<ContentEmbedding> findByConceptTagIgnoreCase(String conceptTag);
 
-        long countByConceptTagIgnoreCase(String conceptTag);
+       long countByConceptTagIgnoreCase(String conceptTag);
 
-        // ── Core semantic search using pgvector cosine distance ──────────────
-        // <=> is cosine distance in pgvector (lower = more similar)
-        // 1 - (embedding <=> queryVector) = cosine similarity
+       // ── Core semantic search using pgvector cosine distance ──────────────
+       // <=> is cosine distance in pgvector (lower = more similar)
+       // 1 - (embedding <=> queryVector) = cosine similarity
 
-        @Query(value = """
-                        SELECT ce.id, ce.chunk_index, ce.chunk_text, ce.concept_name,
-                               ce.concept_tag, ce.content_id, ce.created_at, ce.model,
-                               ce.source_title, ce.source_url
-                        FROM content_embeddings ce
-                        WHERE LOWER(ce.concept_tag) = LOWER(:conceptTag)
-                        ORDER BY ce.embedding <=> CAST(:queryVector AS vector)
-                        LIMIT :limit
-                        """, nativeQuery = true)
-        List<ContentEmbeddingProjection> findSimilar(
-                        @Param("queryVector") String queryVector,
-                        @Param("conceptTag") String conceptTag,
-                        @Param("limit") int limit);
+       @Query(value = """
+                     SELECT ce.id, ce.chunk_index, ce.chunk_text, ce.concept_name,
+                            ce.concept_tag, ce.content_id, ce.created_at, ce.model,
+                            ce.source_title, ce.source_url,
+                            1 - (ce.embedding <=> CAST(:queryVector AS vector)) AS similarity
+                     FROM content_embeddings ce
+                     ORDER BY ce.embedding <=> CAST(:queryVector AS vector)
+                     LIMIT :limit
+                     """, nativeQuery = true)
+       List<ContentEmbeddingProjection> findSimilarGlobal(
+                     @Param("queryVector") String queryVector,
+                     @Param("limit") int limit);
 
-        @Query(value = """
-                        SELECT ce.id, ce.chunk_index, ce.chunk_text, ce.concept_name,
-                               ce.concept_tag, ce.content_id, ce.created_at, ce.model,
-                               ce.source_title, ce.source_url
-                        FROM content_embeddings ce
-                        ORDER BY ce.embedding <=> CAST(:queryVector AS vector)
-                        LIMIT :limit
-                        """, nativeQuery = true)
-        List<ContentEmbeddingProjection> findSimilarGlobal(
-                        @Param("queryVector") String queryVector,
-                        @Param("limit") int limit);
+       // Also update findSimilar:
+       @Query(value = """
+                     SELECT ce.id, ce.chunk_index, ce.chunk_text, ce.concept_name,
+                            ce.concept_tag, ce.content_id, ce.created_at, ce.model,
+                            ce.source_title, ce.source_url,
+                            1 - (ce.embedding <=> CAST(:queryVector AS vector)) AS similarity
+                     FROM content_embeddings ce
+                     WHERE LOWER(ce.concept_tag) = LOWER(:conceptTag)
+                     ORDER BY ce.embedding <=> CAST(:queryVector AS vector)
+                     LIMIT :limit
+                     """, nativeQuery = true)
+       List<ContentEmbeddingProjection> findSimilar(
+                     @Param("queryVector") String queryVector,
+                     @Param("conceptTag") String conceptTag,
+                     @Param("limit") int limit);
 
-        // Delete all embeddings for a content piece
-        void deleteByContentId(UUID contentId);
+       // Delete all embeddings for a content piece
+       void deleteByContentId(UUID contentId);
 }

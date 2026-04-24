@@ -1,1 +1,2 @@
-SELECT * from scraped_content;
+
+SELECT * FROM scraped_content;

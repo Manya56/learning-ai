@@ -7,6 +7,8 @@ import com.learningai.backend.entity.ScrapedContent;
 import com.learningai.backend.repository.ContentEmbeddingProjection;
 import com.learningai.backend.repository.ContentEmbeddingRepository;
 import com.learningai.backend.repository.ScrapedContentRepository;
+import com.pgvector.PGvector;
+
 import ai.djl.huggingface.tokenizers.Encoding;
 
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer;
@@ -176,7 +178,7 @@ public class EmbeddingService {
                 // Save embedding
                 ContentEmbedding embedding = ContentEmbedding.builder()
                         .contentId(content.getId())
-                        .conceptTag(content.getConceptTag())
+                        .conceptTag(content.getConceptTag().replace("+", " "))
                         .conceptName(content.getConceptName())
                         .chunkText(chunk)
                         .chunkIndex(i)
@@ -194,9 +196,11 @@ public class EmbeddingService {
             }
 
             // Mark content as embedded
+            // content.setEmbedding(new PGvector(embed(content.getBodyText())));
             content.setEmbedded(true);
             content.setEmbeddingModel(MODEL_NAME);
             content.setEmbeddedAt(java.time.Instant.now());
+            
             contentRepository.save(content);
 
             log.info("Embedded content: {} ({} chunks) — {}",
@@ -254,12 +258,12 @@ public class EmbeddingService {
         }
 
         // Level 2 — not enough results, search globally
-        if (results.size() < 2) {
-            log.info("Level 1 insufficient — falling back to global search");
-            results = embeddingRepository.findSimilarGlobal(
-                    vectorString, limit);
-            log.info("Level 2 global search → {} results", results.size());
-        }
+        // if (results.size() < 2) {
+        //     log.info("Level 1 insufficient — falling back to global search");
+        //     results = embeddingRepository.findSimilarGlobal(
+        //             vectorString, limit);
+        //     log.info("Level 2 global search → {} results", results.size());
+        // }
 
         return results.stream()
                 .map(ce -> SearchResult.builder()
@@ -268,6 +272,9 @@ public class EmbeddingService {
                         .sourceTitle(ce.getSourceTitle())
                         .conceptTag(ce.getConceptTag())
                         .conceptName(ce.getConceptName())
+                        .similarity(ce.getSimilarity() != null
+                                ? ce.getSimilarity()
+                                : 0.0)
                         .build())
                 .collect(java.util.stream.Collectors.toList());
     }
@@ -327,5 +334,6 @@ public class EmbeddingService {
         private String sourceTitle;
         private String conceptTag;
         private String conceptName;
+        private double similarity;
     }
 }

@@ -52,7 +52,7 @@ dependencies {
     implementation 'commons-validator:commons-validator:1.8.0'
 
     // pgvector Java type support
-    implementation 'com.pgvector:pgvector:0.1.4'
+    implementation 'com.pgvector:pgvector:0.1.6'
 
     // Add DJL (Deep Java Library)
     implementation platform('ai.djl:bom:0.27.0')
