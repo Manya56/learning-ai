@@ -14,4 +14,5 @@ public interface ContentEmbeddingProjection {
     String getSourceUrl();
     String getSourceTitle();
     Instant getCreatedAt();
+    Double getSimilarity(); 
 }

@@ -6,6 +6,8 @@ import lombok.*;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.pgvector.PGvector;
+
 @Entity
 @Table(name = "content_embeddings",
        indexes = {
@@ -45,7 +47,6 @@ public class ContentEmbedding {
 
     // The actual vector — 768 dimensions for nomic-embed-text
     @Column(columnDefinition = "vector(384)", nullable = false)
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VECTOR)
     private float[] embedding;
 
     // Model used

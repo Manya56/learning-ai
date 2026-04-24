@@ -27,9 +27,9 @@ public class WebScraperService {
     // ─── Main scrape entry point ──────────────────────────────────────────
 
     public Optional<ScrapedContent> scrape(String url,
-                                            String conceptTag,
-                                            String conceptName,
-                                            String scrapeReason) {
+            String conceptTag,
+            String conceptName,
+            String scrapeReason) {
         try {
             // 1. Validate URL
             if (!isValidUrl(url)) {
@@ -49,6 +49,7 @@ public class WebScraperService {
 
             // 4. Fetch and parse
             log.info("Scraping: {}", url);
+
             Document doc = Jsoup.connect(url)
                     .userAgent(ScraperConfig.USER_AGENT)
                     .timeout(ScraperConfig.REQUEST_TIMEOUT_MS)
@@ -56,7 +57,7 @@ public class WebScraperService {
                     .get();
 
             // 5. Extract clean text
-            String title    = extractTitle(doc);
+            String title = extractTitle(doc);
             String bodyText = extractBodyText(doc, url);
 
             // 6. Validate content quality
@@ -72,14 +73,21 @@ public class WebScraperService {
                         0, ScraperConfig.MAX_BODY_LENGTH_CHARS);
             }
 
+            String decodedTag = java.net.URLDecoder.decode(
+                    conceptTag, java.nio.charset.StandardCharsets.UTF_8);
+            String decodedName = java.net.URLDecoder.decode(
+                    conceptName != null ? conceptName : "",
+                    java.nio.charset.StandardCharsets.UTF_8);
+
+
             // 8. Build and save entity
             ScrapedContent content = ScrapedContent.builder()
                     .url(url)
                     .urlHash(urlHash)
                     .title(title)
                     .bodyText(bodyText)
-                    .conceptTag(conceptTag)
-                    .conceptName(conceptName)
+                    .conceptTag(decodedTag)
+                    .conceptName(decodedName)
                     .source(extractDomain(url))
                     .wordCount(countWords(bodyText))
                     .embedded(false)
@@ -106,9 +114,9 @@ public class WebScraperService {
     // ─── Scrape multiple URLs ─────────────────────────────────────────────
 
     public List<ScrapedContent> scrapeAll(List<String> urls,
-                                           String conceptTag,
-                                           String conceptName,
-                                           String scrapeReason) {
+            String conceptTag,
+            String conceptName,
+            String scrapeReason) {
         List<ScrapedContent> results = new ArrayList<>();
         for (String url : urls) {
             scrape(url, conceptTag, conceptName, scrapeReason)
@@ -126,56 +134,56 @@ public class WebScraperService {
 
         // Remove noise elements first
         doc.select("nav, header, footer, aside, " +
-                   ".sidebar, .advertisement, .ads, .cookie, " +
-                   ".popup, .modal, script, style, " +
-                   ".social-share, .related-posts, " +
-                   "#comments, .comment-section").remove();
+                ".sidebar, .advertisement, .ads, .cookie, " +
+                ".popup, .modal, script, style, " +
+                ".social-share, .related-posts, " +
+                "#comments, .comment-section").remove();
 
         // Site-specific extraction for best quality
         String text = switch (domain) {
             case "geeksforgeeks.org" ->
                 extractFromSelectors(doc,
-                    "article.content", ".article-body",
-                    ".entry-content", "div.text");
+                        "article.content", ".article-body",
+                        ".entry-content", "div.text");
 
             case "en.wikipedia.org" ->
                 extractFromSelectors(doc,
-                    "#mw-content-text .mw-parser-output",
-                    "#bodyContent");
+                        "#mw-content-text .mw-parser-output",
+                        "#bodyContent");
 
             case "baeldung.com" ->
                 extractFromSelectors(doc,
-                    ".entry-content", "article");
+                        ".entry-content", "article");
 
             case "medium.com", "dev.to",
-                 "towardsdatascience.com" ->
+                    "towardsdatascience.com" ->
                 extractFromSelectors(doc,
-                    "article", ".postArticle-content",
-                    "[data-article-body]");
+                        "article", ".postArticle-content",
+                        "[data-article-body]");
 
             case "investopedia.com" ->
                 extractFromSelectors(doc,
-                    ".article-body-content",
-                    "[data-click-tracked]", "article");
+                        ".article-body-content",
+                        "[data-click-tracked]", "article");
 
             case "stackoverflow.com" ->
                 extractFromSelectors(doc,
-                    ".answercell .s-prose",
-                    ".question .s-prose");
+                        ".answercell .s-prose",
+                        ".question .s-prose");
 
             default ->
                 extractFromSelectors(doc,
-                    "article", "main",
-                    ".content", ".post-content",
-                    ".entry-content", "#content",
-                    "div.body");
+                        "article", "main",
+                        ".content", ".post-content",
+                        ".entry-content", "#content",
+                        "div.body");
         };
 
         // Final fallback — grab all paragraph text
         if (text.length() < ScraperConfig.MIN_BODY_LENGTH_CHARS) {
             StringBuilder sb = new StringBuilder();
             doc.select("p, h1, h2, h3, h4, li, code, pre")
-               .forEach(el -> sb.append(el.text()).append("\n"));
+                    .forEach(el -> sb.append(el.text()).append("\n"));
             text = sb.toString();
         }
 
@@ -183,15 +191,14 @@ public class WebScraperService {
     }
 
     private String extractFromSelectors(Document doc,
-                                         String... selectors) {
+            String... selectors) {
         for (String selector : selectors) {
             Elements elements = doc.select(selector);
             if (!elements.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
                 for (Element el : elements) {
                     // Preserve code blocks
-                    el.select("pre, code").forEach(code ->
-                        code.text("[CODE: " + code.text() + "]"));
+                    el.select("pre, code").forEach(code -> code.text("[CODE: " + code.text() + "]"));
                     sb.append(el.text()).append("\n\n");
                 }
                 String text = cleanText(sb.toString());
@@ -216,32 +223,36 @@ public class WebScraperService {
     }
 
     private String cleanText(String raw) {
-        if (raw == null) return "";
+        if (raw == null)
+            return "";
         return raw
-            // Remove HTML entities
-            .replaceAll("&[a-zA-Z]+;", " ")
-            // Collapse whitespace
-            .replaceAll("[ \\t]+", " ")
-            // Max 2 newlines in a row
-            .replaceAll("\\n{3,}", "\n\n")
-            // Remove lines that are just punctuation or numbers
-            .replaceAll("(?m)^[^a-zA-Z]*$\\n?", "")
-            .trim();
+                // Remove HTML entities
+                .replaceAll("&[a-zA-Z]+;", " ")
+                // Collapse whitespace
+                .replaceAll("[ \\t]+", " ")
+                // Max 2 newlines in a row
+                .replaceAll("\\n{3,}", "\n\n")
+                // Remove lines that are just punctuation or numbers
+                .replaceAll("(?m)^[^a-zA-Z]*$\\n?", "")
+                .trim();
     }
 
     private String extractDomain(String url) {
         try {
             String host = new URI(url).getHost();
-            if (host == null) return "unknown";
+            if (host == null)
+                return "unknown";
             return host.startsWith("www.")
-                    ? host.substring(4) : host;
+                    ? host.substring(4)
+                    : host;
         } catch (Exception e) {
             return "unknown";
         }
     }
 
     private boolean isValidUrl(String url) {
-        if (url == null || url.isBlank()) return false;
+        if (url == null || url.isBlank())
+            return false;
         try {
             URI uri = new URI(url);
             String scheme = uri.getScheme();
@@ -271,7 +282,8 @@ public class WebScraperService {
     }
 
     private int countWords(String text) {
-        if (text == null || text.isBlank()) return 0;
+        if (text == null || text.isBlank())
+            return 0;
         return text.trim().split("\\s+").length;
     }
 }
