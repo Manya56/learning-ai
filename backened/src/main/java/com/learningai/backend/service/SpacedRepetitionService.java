@@ -1,0 +1,299 @@
+package com.learningai.backend.service;
+
+import com.learningai.backend.dto.response.RevisionCardResponse;
+import com.learningai.backend.dto.response.RevisionStatsResponse;
+import com.learningai.backend.entity.LearningProfile;
+import com.learningai.backend.entity.RevisionCard;
+import com.learningai.backend.entity.User;
+import com.learningai.backend.exception.AppException;
+import com.learningai.backend.repository.LearningProfileRepository;
+import com.learningai.backend.repository.RevisionCardRepository;
+import com.learningai.backend.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class SpacedRepetitionService {
+
+    private final RevisionCardRepository    cardRepository;
+    private final UserRepository            userRepository;
+    private final LearningProfileRepository profileRepository;
+
+    // SM-2 constants
+    private static final double MIN_EASE_FACTOR   = 1.3;
+    private static final double INITIAL_EASE      = 2.5;
+    private static final int    MASTERY_INTERVAL  = 21; // days
+    private static final double MASTERY_EASE      = 3.0;
+
+    // ─── Get due cards for today ──────────────────────────────────────────
+
+    public RevisionStatsResponse getDueCards(UUID userId) {
+        LocalDate today = LocalDate.now();
+
+        List<RevisionCard> dueCards = cardRepository
+                .findDueCards(userId, today);
+
+        long totalCards    = cardRepository
+                .countByUserIdAndStatus(userId,
+                        RevisionCard.CardStatus.ACTIVE)
+                + cardRepository.countByUserIdAndStatus(userId,
+                        RevisionCard.CardStatus.MASTERED);
+        long masteredCards = cardRepository
+                .countByUserIdAndStatus(userId,
+                        RevisionCard.CardStatus.MASTERED);
+        long overdueCards  = dueCards.stream()
+                .filter(c -> c.getNextReviewAt().isBefore(today))
+                .count();
+
+        // Build 7-day forecast
+        List<RevisionStatsResponse.DayForecast> forecast =
+                buildWeekForecast(userId, today);
+
+        return RevisionStatsResponse.builder()
+                .totalCards(totalCards)
+                .dueToday(dueCards.size())
+                .masteredCards(masteredCards)
+                .overdueCards(overdueCards)
+                .dueCards(dueCards.stream()
+                        .map(c -> mapToResponse(c, today))
+                        .collect(Collectors.toList()))
+                .weekForecast(forecast)
+                .build();
+    }
+
+    // ─── Complete a revision (SM-2 update) ───────────────────────────────
+
+    @Transactional
+    public RevisionCardResponse completeRevision(UUID userId,
+                                                  String conceptName,
+                                                  int quality) {
+        RevisionCard card = cardRepository
+                .findByUserIdAndConceptName(userId, conceptName)
+                .orElseThrow(() -> AppException.notFound(
+                    "Revision card not found for: " + conceptName));
+
+        // Apply SM-2 algorithm
+        applySmTwo(card, quality);
+
+        // Check if mastered
+        if (card.getEaseFactor() >= MASTERY_EASE
+                && card.getIntervalDays() >= MASTERY_INTERVAL) {
+            card.setStatus(RevisionCard.CardStatus.MASTERED);
+            log.info("Concept MASTERED: {} by user: {}",
+                    conceptName, userId);
+        }
+
+        card.setLastReviewedAt(Instant.now());
+        card.setTotalReviews(card.getTotalReviews() + 1);
+        card.setLastQuality(quality);
+
+        card = cardRepository.save(card);
+
+        log.info("Revision complete — user:{} concept:{} quality:{} " +
+                 "nextReview:{} interval:{}d",
+                userId, conceptName, quality,
+                card.getNextReviewAt(), card.getIntervalDays());
+
+        return mapToResponse(card, LocalDate.now());
+    }
+
+    // ─── Create card for a concept (called after quiz attempt) ───────────
+
+    @Transactional
+    public RevisionCard createOrUpdateCard(UUID userId,
+                                            String conceptName,
+                                            String topicGoal,
+                                            boolean wasCorrect) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> AppException.notFound("User not found"));
+
+        Optional<RevisionCard> existing =
+                cardRepository.findByUserIdAndConceptName(
+                        userId, conceptName);
+
+        if (existing.isPresent()) {
+            // Card exists — light update based on quiz result
+            RevisionCard card = existing.get();
+            // Convert boolean to rough quality score
+            int quality = wasCorrect ? 4 : 1;
+            applySmTwo(card, quality);
+            card.setLastReviewedAt(Instant.now());
+            card.setTotalReviews(card.getTotalReviews() + 1);
+            return cardRepository.save(card);
+        }
+
+        // New card — schedule first review
+        // If correct → review in 3 days, if wrong → review tomorrow
+        LocalDate firstReview = wasCorrect
+                ? LocalDate.now().plusDays(3)
+                : LocalDate.now().plusDays(1);
+
+        RevisionCard card = RevisionCard.builder()
+                .user(user)
+                .conceptName(conceptName)
+                .topicGoal(topicGoal)
+                .easeFactor(INITIAL_EASE)
+                .intervalDays(wasCorrect ? 3 : 1)
+                .repetitions(0)
+                .nextReviewAt(firstReview)
+                .stability(wasCorrect ? 3.0 : 1.0)
+                .status(RevisionCard.CardStatus.ACTIVE)
+                .build();
+
+        return cardRepository.save(card);
+    }
+
+    // ─── Get all cards for a user ─────────────────────────────────────────
+
+    public List<RevisionCardResponse> getAllCards(UUID userId) {
+        LocalDate today = LocalDate.now();
+        return cardRepository
+                .findByUserIdOrderByNextReviewAtAsc(userId)
+                .stream()
+                .map(c -> mapToResponse(c, today))
+                .collect(Collectors.toList());
+    }
+
+    // ─── SM-2 Algorithm ───────────────────────────────────────────────────
+
+    private void applySmTwo(RevisionCard card, int quality) {
+        // SM-2 formula:
+        // EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+        // where q = quality 0-5
+
+        if (quality >= 3) {
+            // Correct response
+            int newInterval;
+            if (card.getRepetitions() == 0) {
+                newInterval = 1;
+            } else if (card.getRepetitions() == 1) {
+                newInterval = 6;
+            } else {
+                newInterval = (int) Math.round(
+                        card.getIntervalDays() * card.getEaseFactor());
+            }
+
+            card.setIntervalDays(newInterval);
+            card.setRepetitions(card.getRepetitions() + 1);
+
+        } else {
+            // Failed response — reset
+            card.setRepetitions(0);
+            card.setIntervalDays(1);
+        }
+
+        // Update ease factor
+        double newEF = card.getEaseFactor()
+                + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+        card.setEaseFactor(Math.max(MIN_EASE_FACTOR, newEF));
+
+        // Update stability (Ebbinghaus)
+        // Stability increases with successful reviews
+        if (quality >= 3) {
+            card.setStability(card.getStability() * card.getEaseFactor());
+        } else {
+            card.setStability(Math.max(1.0, card.getStability() * 0.5));
+        }
+
+        // Schedule next review
+        card.setNextReviewAt(
+                LocalDate.now().plusDays(card.getIntervalDays()));
+    }
+
+    // ─── Ebbinghaus forgetting curve ─────────────────────────────────────
+    // R = e^(-t / S)
+    // R = retention (0-1), t = days since review, S = stability
+
+    private double calculateRetention(RevisionCard card) {
+        if (card.getLastReviewedAt() == null) return 1.0;
+
+        long daysSince = ChronoUnit.DAYS.between(
+                card.getLastReviewedAt()
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDate(),
+                LocalDate.now());
+
+        double retention = Math.exp(
+                -daysSince / card.getStability());
+
+        return Math.max(0.0, Math.min(1.0, retention));
+    }
+
+    // ─── Build 7-day forecast ─────────────────────────────────────────────
+
+    private List<RevisionStatsResponse.DayForecast> buildWeekForecast(
+            UUID userId, LocalDate today) {
+
+        List<RevisionCard> allCards = cardRepository
+                .findByUserIdOrderByNextReviewAtAsc(userId);
+
+        List<RevisionStatsResponse.DayForecast> forecast = new ArrayList<>();
+
+        for (int i = 0; i < 7; i++) {
+            LocalDate day = today.plusDays(i);
+            final LocalDate finalDay = day;
+            long count = allCards.stream()
+                    .filter(c -> c.getNextReviewAt().equals(finalDay)
+                            && c.getStatus() == RevisionCard.CardStatus.ACTIVE)
+                    .count();
+
+            forecast.add(RevisionStatsResponse.DayForecast.builder()
+                    .date(day.toString())
+                    .cardsDue((int) count)
+                    .build());
+        }
+
+        return forecast;
+    }
+
+    // ─── Map to response ──────────────────────────────────────────────────
+
+    private RevisionCardResponse mapToResponse(RevisionCard card,
+                                                LocalDate today) {
+        double retention = calculateRetention(card);
+
+        long daysSince = card.getLastReviewedAt() != null
+                ? ChronoUnit.DAYS.between(
+                    card.getLastReviewedAt()
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate(),
+                    today)
+                : 0;
+
+        boolean overdue = card.getNextReviewAt().isBefore(today);
+        int daysOverdue = overdue
+                ? (int) ChronoUnit.DAYS.between(
+                        card.getNextReviewAt(), today)
+                : 0;
+
+        return RevisionCardResponse.builder()
+                .cardId(card.getId())
+                .conceptName(card.getConceptName())
+                .topicGoal(card.getTopicGoal())
+                .status(card.getStatus().name())
+                .easeFactor(Math.round(card.getEaseFactor() * 100.0)
+                        / 100.0)
+                .intervalDays(card.getIntervalDays())
+                .repetitions(card.getRepetitions())
+                .lastQuality(card.getLastQuality())
+                .nextReviewAt(card.getNextReviewAt())
+                .retentionPercent(Math.round(retention * 1000.0) / 10.0)
+                .daysSinceLastReview((int) daysSince)
+                .overdue(overdue)
+                .daysOverdue(daysOverdue)
+                .build();
+    }
+}

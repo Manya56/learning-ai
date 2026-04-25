@@ -28,6 +28,7 @@ public class LearningProfileService {
     private final ProfileSnapshotRepository snapshotRepository;
     private final UserRepository userRepository;
     private final LearningStyleInferenceService inferenceService;
+    private final SpacedRepetitionService revisionService;
 
     // ─── Get full profile ─────────────────────────────────────────────────
 
@@ -43,18 +44,18 @@ public class LearningProfileService {
 
         // Top 3 weak concepts (lowest scores first)
         List<ProfileStatsResponse.ConceptScore> top3Weak = p.getWeakConcepts()
-            .entrySet().stream()
-            .sorted(Map.Entry.comparingByValue())
-            .limit(3)
-            .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
-            .collect(Collectors.toList());
-        
+                .entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .limit(3)
+                .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+
         List<ProfileStatsResponse.ConceptScore> top3Strong = p.getStrongConcepts()
-            .entrySet().stream()
-            .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-            .limit(3)
-            .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
-            .collect(Collectors.toList());
+                .entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(3)
+                .map(e -> new ProfileStatsResponse.ConceptScore(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
 
         // Current topic name
         String currentTopic = "Not started";
@@ -118,8 +119,7 @@ public class LearningProfileService {
     public LearningStyleResponse inferAndUpdateStyle(UUID userId) {
         LearningProfile profile = getProfileOrThrow(userId);
 
-        LearningStyleResponse result =
-                inferenceService.inferStyle(profile);
+        LearningStyleResponse result = inferenceService.inferStyle(profile);
 
         if (result.isStyleChanged()) {
             String oldStyle = profile.getLearningStyle();
@@ -139,11 +139,11 @@ public class LearningProfileService {
 
     @Transactional
     public void recordAttempt(UUID userId,
-                               String concept,
-                               boolean isCorrect,
-                               long timeTakenMs,
-                               boolean hintUsed,
-                               boolean isCodingQuestion) {
+            String concept,
+            boolean isCorrect,
+            long timeTakenMs,
+            boolean hintUsed,
+            boolean isCodingQuestion) {
 
         LearningProfile profile = getProfileOrThrow(userId);
 
@@ -176,10 +176,8 @@ public class LearningProfileService {
         }
 
         // Check if difficulty should change
-        String newDifficulty =
-                inferenceService.adjustDifficulty(profile);
-        boolean difficultyChanged =
-                !newDifficulty.equals(profile.getCurrentDifficulty());
+        String newDifficulty = inferenceService.adjustDifficulty(profile);
+        boolean difficultyChanged = !newDifficulty.equals(profile.getCurrentDifficulty());
 
         if (difficultyChanged) {
             profile.setCurrentDifficulty(newDifficulty);
@@ -189,8 +187,7 @@ public class LearningProfileService {
         // Re-infer style every 10 attempts
         int total = profile.getTotalQuestionsAttempted();
         if (total % 10 == 0 && total > 0) {
-            LearningStyleResponse styleResult =
-                    inferenceService.inferStyle(profile);
+            LearningStyleResponse styleResult = inferenceService.inferStyle(profile);
             if (styleResult.isStyleChanged()) {
                 profile.setLearningStyle(styleResult.getCurrentStyle());
                 saveSnapshot(profile, "STYLE_INFERRED");
@@ -199,6 +196,16 @@ public class LearningProfileService {
 
         profile.setLastActiveAt(java.time.Instant.now());
         profileRepository.save(profile);
+        try {
+            LearningProfile finalProfile = profile;
+            revisionService.createOrUpdateCard(
+                    userId,
+                    concept,
+                    finalProfile.getGoal(),
+                    isCorrect);
+        } catch (Exception e) {
+            log.warn("Failed to create revision card: {}", e.getMessage());
+        }
     }
 
     // ─── Record explanation read ──────────────────────────────────────────
