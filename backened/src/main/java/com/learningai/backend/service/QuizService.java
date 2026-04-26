@@ -28,6 +28,7 @@ public class QuizService {
         private final LearningProfileService profileService;
 
         private final RedisTemplate<String, Object> redisTemplate;
+        private final LanguageService languageService;
 
         private static final String HINT_KEY = "quiz:hints:";
 
@@ -95,6 +96,9 @@ public class QuizService {
                 QuizSession session = getActiveSession(sessionId, userId);
                 User user = session.getUser();
 
+                LearningProfile profile = profileRepository
+                                .findByUserId(userId).orElse(null);
+
                 // Validate bounds
                 if (questionIndex < 0 ||
                                 questionIndex >= session.getQuestions().size()) {
@@ -142,12 +146,30 @@ public class QuizService {
                 log.info("Answer submitted — user:{} q:{} correct:{} time:{}ms",
                                 userId, questionIndex, correct, timeTakenMs);
 
+                String langCode = "en";
+                String langName = "English";
+                if (profile != null &&
+                                !"English".equalsIgnoreCase(
+                                                profile.getPreferredLanguage())) {
+                        // Detect from profile language name
+                        LanguageService.DetectionResult det = languageService.detect(
+                                        profile.getPreferredLanguage());
+                        langCode = det.languageCode();
+                        langName = profile.getPreferredLanguage();
+                }
+
+                String explanation = qData.getExplanation();
+                if (!"en".equals(langCode)) {
+                        explanation = languageService.translateFromEnglish(
+                                        explanation, langCode, langName);
+                }
+
                 return AnswerFeedbackResponse.builder()
                                 .questionIndex(questionIndex)
                                 .selectedIndex(selectedIndex)
                                 .correctIndex(qData.getCorrectAnswerIndex())
                                 .correct(correct)
-                                .explanation(qData.getExplanation())
+                                .explanation(explanation)
                                 .conceptName(session.getConceptName())
                                 .build();
         }
