@@ -23,6 +23,7 @@ import java.util.Optional;
 public class WebScraperService {
 
     private final ScrapedContentRepository contentRepository;
+    private final PlaywrightScraperClient playwrightClient;
 
     // ─── Main scrape entry point ──────────────────────────────────────────
 
@@ -60,11 +61,31 @@ public class WebScraperService {
             String title = extractTitle(doc);
             String bodyText = extractBodyText(doc, url);
 
+            String decodedTag = java.net.URLDecoder.decode(
+                    conceptTag, java.nio.charset.StandardCharsets.UTF_8);
+            String decodedName = java.net.URLDecoder.decode(
+                    conceptName != null ? conceptName : "",
+                    java.nio.charset.StandardCharsets.UTF_8);
+
             // 6. Validate content quality
             if (bodyText.length() < ScraperConfig.MIN_BODY_LENGTH_CHARS) {
                 log.warn("Content too short ({}chars), skipping: {}",
                         bodyText.length(), url);
-                return Optional.empty();
+                Optional<PlaywrightScraperClient.PlaywrightResult> pwResult = playwrightClient.scrape(url, decodedTag,
+                        decodedName);
+
+                if (pwResult.isPresent() &&
+                        pwResult.get().getBodyText().length() >= ScraperConfig.MIN_BODY_LENGTH_CHARS) {
+
+                    title = pwResult.get().getTitle();
+                    bodyText = pwResult.get().getBodyText();
+                    scrapeReason = "PLAYWRIGHT_" + scrapeReason;
+                    log.info("Playwright succeeded for: {} ({} chars)",
+                            url, bodyText.length());
+                } else {
+                    log.warn("Both Jsoup and Playwright failed for: {}", url);
+                    return Optional.empty();
+                }
             }
 
             // 7. Trim if too long
@@ -72,13 +93,6 @@ public class WebScraperService {
                 bodyText = bodyText.substring(
                         0, ScraperConfig.MAX_BODY_LENGTH_CHARS);
             }
-
-            String decodedTag = java.net.URLDecoder.decode(
-                    conceptTag, java.nio.charset.StandardCharsets.UTF_8);
-            String decodedName = java.net.URLDecoder.decode(
-                    conceptName != null ? conceptName : "",
-                    java.nio.charset.StandardCharsets.UTF_8);
-
 
             // 8. Build and save entity
             ScrapedContent content = ScrapedContent.builder()
@@ -100,8 +114,8 @@ public class WebScraperService {
                     url, content.getWordCount());
 
             return Optional.of(content);
-
-        } catch (InterruptedException e) {
+        } catch (
+        InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("Scraping interrupted: {}", url);
             return Optional.empty();
