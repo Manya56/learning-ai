@@ -60,6 +60,10 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+scraper:
+  service:
+    url: ${SCRAPER_SERVICE_URL:http://localhost:8001}
+
 logging:
   level:
     com.learningai: DEBUG

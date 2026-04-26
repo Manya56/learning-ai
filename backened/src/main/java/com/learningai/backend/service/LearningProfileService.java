@@ -29,6 +29,7 @@ public class LearningProfileService {
     private final UserRepository userRepository;
     private final LearningStyleInferenceService inferenceService;
     private final SpacedRepetitionService revisionService;
+    private final DailyStatsService dailyStatsService;
 
     // ─── Get full profile ─────────────────────────────────────────────────
 
@@ -205,6 +206,13 @@ public class LearningProfileService {
                     isCorrect);
         } catch (Exception e) {
             log.warn("Failed to create revision card: {}", e.getMessage());
+        }
+
+        try {
+            dailyStatsService.recordAttempt(
+                    userId, concept, isCorrect, timeTakenMs);
+        } catch (Exception e) {
+            log.warn("Failed to record daily stats: {}", e.getMessage());
         }
     }
 
