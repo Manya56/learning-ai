@@ -4,7 +4,8 @@ import lombok.Builder;
 import lombok.Data;
 import java.util.List;
 
-@Data @Builder
+@Data
+@Builder
 public class ExplainResponse {
 
     private String answer;
@@ -20,7 +21,12 @@ public class ExplainResponse {
     // Source articles used
     private List<SourceDto> sources;
 
-    @Data @Builder
+    private String detectedLanguage; // e.g. "Hindi"
+    private String languageCode; // e.g. "hi"
+    private boolean wasTranslated; // true if input was non-English
+
+    @Data
+    @Builder
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class SourceDto {
