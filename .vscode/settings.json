@@ -11,5 +11,6 @@
       "password": "learning_backened",
       "database": "learning_db"
     }
-  ]
+  ],
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

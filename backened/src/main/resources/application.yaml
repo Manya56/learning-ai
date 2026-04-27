@@ -64,6 +64,17 @@ scraper:
   service:
     url: ${SCRAPER_SERVICE_URL:http://localhost:8001}
 
+rate-limit:
+  ai:
+    per-minute: 20
+    per-day: 200
+  scrape:
+    per-minute: 5
+  quiz:
+    per-minute: 60
+  general:
+    per-minute: 200
+
 logging:
   level:
     com.learningai: DEBUG
