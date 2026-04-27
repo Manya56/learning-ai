@@ -59,7 +59,7 @@ public class RagService {
                 }
 
                 // ── Layer 1: Vector search ────────────────────────────────────────
-                List<EmbeddingService.SearchResult> chunks = embeddingService.search(englishQuestion, null, 5);
+                List<EmbeddingService.SearchResult> chunks = embeddingService.search(englishQuestion, searchTag, 5);
 
                 List<EmbeddingService.SearchResult> relevantChunks = chunks.stream()
                                 .filter(c -> c.getSimilarity() >= MIN_SIMILARITY_THRESHOLD)
@@ -82,7 +82,7 @@ public class RagService {
                                                         langCtx.languageCode(),
                                                         langCtx.languageName());
                         return buildResponse(finalAnswer, relevantChunks,
-                                        "RETRIEVED", conceptName, topicGoal,langCtx);
+                                        "RETRIEVED", conceptName, topicGoal, langCtx);
                 }
 
                 log.info("Layer 1 miss — chunks not relevant enough, trying Groq direct");
@@ -111,7 +111,7 @@ public class RagService {
                                                         langCtx.languageCode(),
                                                         langCtx.languageName());
                         return buildResponse(finalAnswer, relevantTopicChunks,
-                                        "RETRIEVED", conceptName, topicGoal,langCtx);
+                                        "RETRIEVED", conceptName, topicGoal, langCtx);
                 }
 
                 // If global search returned something but not topic-matched,
@@ -142,7 +142,7 @@ public class RagService {
                                                         langCtx.languageCode(),
                                                         langCtx.languageName());
                         return buildResponse(finalAnswer, relevantConceptChunks,
-                                        "RETRIEVED", conceptName, topicGoal,langCtx);
+                                        "RETRIEVED", conceptName, topicGoal, langCtx);
                 }
 
                 // No good match — fall through to Groq direct
@@ -157,15 +157,21 @@ public class RagService {
 
                 if ("HIGH".equals(direct.getConfidence())) {
                         log.info("Layer 2 hit — Groq HIGH confidence direct answer");
-                        String finalAnswer = langCtx.wasEnglish()
-                                        ? direct.getAnswer()
+                        String englishAnswer = direct.getAnswer();
+                        pipelineService.storeAiKnowledge(
+                                        englishQuestion, // the English query
+                                        englishAnswer, // the English answer
+                                        conceptName,
+                                        searchTag // resolved topic tag
+                        );
+                        String finalAnswer = langCtx.wasEnglish() ? englishAnswer
                                         : languageService.translateFromEnglish(
-                                                        direct.getAnswer(),
+                                                        englishAnswer,
                                                         langCtx.languageCode(),
                                                         langCtx.languageName());
 
                         return buildResponse(finalAnswer, List.of(),
-                                        "AI_KNOWLEDGE", conceptName, topicGoal,langCtx);
+                                        "AI_KNOWLEDGE", conceptName, topicGoal, langCtx);
                 }
 
                 log.info("Layer 2 confidence: {} — triggering on-demand scrape",
@@ -193,6 +199,12 @@ public class RagService {
                                         profile, learningStyle, difficulty,
                                         "SCRAPED_FRESH", searchTag).getAnswer();
 
+                        pipelineService.storeAiKnowledge(
+                                        englishQuestion,
+                                        englishAnswer,
+                                        conceptName,
+                                        searchTag);
+
                         String finalAnswer = langCtx.wasEnglish() ? englishAnswer
                                         : languageService.translateFromEnglish(
                                                         englishAnswer,
@@ -200,7 +212,7 @@ public class RagService {
                                                         langCtx.languageName());
 
                         return buildResponse(finalAnswer, chunks,
-                                        "SCRAPED_FRESH", conceptName, topicGoal,langCtx);
+                                        "SCRAPED_FRESH", conceptName, topicGoal, langCtx);
                 }
 
                 // Final fallback — use Groq's medium confidence answer
@@ -216,7 +228,7 @@ public class RagService {
                                                 langCtx.languageName());
 
                 return buildResponse(finalAnswer, List.of(),
-                                "AI_FALLBACK", conceptName, topicGoal,langCtx);
+                                "AI_FALLBACK", conceptName, topicGoal, langCtx);
         }
 
         // ─── Generate answer with retrieved context ───────────────────────────
@@ -473,7 +485,7 @@ public class RagService {
                         String sourceType,
                         String conceptName,
                         String topicGoal,
-                LanguageService.TranslationContext langCtx) {
+                        LanguageService.TranslationContext langCtx) {
                 List<RagSource> sources = chunks.stream()
                                 .map(c -> RagSource.builder()
                                                 .title(c.getSourceTitle())
