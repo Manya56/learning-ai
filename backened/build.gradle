@@ -54,6 +54,9 @@ dependencies {
     // pgvector Java type support
     implementation 'com.pgvector:pgvector:0.1.6'
 
+    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    implementation 'com.bucket4j:bucket4j-redis:8.10.1'
+
     // Add DJL (Deep Java Library)
     implementation platform('ai.djl:bom:0.27.0')
     implementation 'ai.djl:api:0.27.0'

@@ -27,6 +27,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserRepository userRepository;
+    private final RateLimitFilter rateLimitFilter;
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/**",
@@ -49,7 +50,9 @@ public class SecurityConfig {
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter,
-                UsernamePasswordAuthenticationFilter.class);
+                UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(rateLimitFilter,
+        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
