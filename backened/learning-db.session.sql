@@ -1,2 +1,2 @@
 
-SELECT * FROM mentor_sessions;
+SELECT * FROM scraped_content;

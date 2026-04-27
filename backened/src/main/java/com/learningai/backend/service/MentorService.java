@@ -11,6 +11,7 @@ import com.learningai.backend.exception.AppException;
 import com.learningai.backend.repository.LearningProfileRepository;
 import com.learningai.backend.repository.MentorSessionRepository;
 import com.learningai.backend.repository.UserRepository;
+import com.learningai.backend.service.scraper.ContentPipelineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -34,6 +35,7 @@ public class MentorService {
         private final RedisTemplate<String, Object> redisTemplate;
         private final ObjectMapper objectMapper;
         private final LanguageService languageService;
+        private final ContentPipelineService pipelineService;
 
         // Redis key prefix for conversation context
         private static final String REDIS_KEY = "mentor:context:";
@@ -80,6 +82,15 @@ public class MentorService {
                 // [system already separate] + last N history + new user message
                 String groqResponse = callGroqWithHistory(
                                 systemPrompt, history, englishMessage);
+
+                if (isKnowledgeQuestion(englishMessage) && profile != null) {
+                        pipelineService.storeAiKnowledge(
+                                        englishMessage,
+                                        groqResponse,
+                                        "Mentor: " + userMessage.substring(
+                                                        0, Math.min(50, userMessage.length())),
+                                        profile.getGoal());
+                }
 
                 String finalResponse = langCtx.wasEnglish()
                                 ? groqResponse
@@ -293,8 +304,6 @@ public class MentorService {
                                                 "content", msg.getContent()));
                         }
 
-                        
-
                         String finalUserMessage = """
                                         USER MESSAGE:
                                         %s
@@ -414,5 +423,24 @@ public class MentorService {
         private User getUser(UUID userId) {
                 return userRepository.findById(userId)
                                 .orElseThrow(() -> AppException.notFound("User not found"));
+        }
+
+        private boolean isKnowledgeQuestion(String message) {
+                if (message == null)
+                        return false;
+                String lower = message.toLowerCase();
+                // Store if it looks like a learning question
+                return lower.contains("what is") ||
+                                lower.contains("how does") ||
+                                lower.contains("explain") ||
+                                lower.contains("why is") ||
+                                lower.contains("what are") ||
+                                lower.contains("how to") ||
+                                lower.contains("difference between") ||
+                                lower.contains("kaise") || // Hindi "how"
+                                lower.contains("kya hai") || // Hindi "what is"
+                                lower.contains("batao") || // Hindi "tell me"
+                                lower.contains("que es") || // Spanish "what is"
+                                lower.contains("comment"); // French "how"
         }
 }
