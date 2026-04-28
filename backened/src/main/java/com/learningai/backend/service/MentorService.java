@@ -78,26 +78,34 @@ public class MentorService {
                 String systemPrompt = buildSystemPrompt(
                                 personality, profile, englishMessage);
 
-                // Build messages list for Groq
-                // [system already separate] + last N history + new user message
-                String groqResponse = callGroqWithHistory(
-                                systemPrompt, history, englishMessage);
+                // ── Call Groq — with graceful fallback ────────────────────────────
+                String groqResponse;
+                try {
+                        groqResponse = callGroqWithHistory(systemPrompt, history, englishMessage);
+                } catch (Exception e) {
+                        log.error("Mentor Groq call failed for user {}: {}", userId, e.getMessage());
+                        groqResponse = buildFallbackResponse(personality);
+                }
 
+                // ── Cache knowledge if it's a learning question ───────────────────
                 if (isKnowledgeQuestion(englishMessage) && profile != null) {
-                        pipelineService.storeAiKnowledge(
-                                        englishMessage,
-                                        groqResponse,
-                                        "Mentor: " + userMessage.substring(
-                                                        0, Math.min(50, userMessage.length())),
-                                        profile.getGoal());
+                        try {
+                                pipelineService.storeAiKnowledge(
+                                                englishMessage,
+                                                groqResponse,
+                                                "Mentor: " + userMessage.substring(0,
+                                                                Math.min(50, userMessage.length())),
+                                                profile.getGoal());
+                        } catch (Exception e) {
+                                log.warn("Failed to cache mentor knowledge: {}", e.getMessage());
+                        }
                 }
 
                 String finalResponse = langCtx.wasEnglish()
                                 ? groqResponse
-                                : languageService.translateFromEnglish(
-                                                groqResponse,
-                                                langCtx.languageCode(),
-                                                langCtx.languageName());
+                                : translateSafely(groqResponse, langCtx.languageCode(), langCtx.languageName());
+
+                Instant now = Instant.now();
 
                 // Save user message + AI response to Redis
                 MentorSession.MentorMessage userMsg = MentorSession.MentorMessage.builder()
@@ -113,8 +121,9 @@ public class MentorService {
                                 .build();
 
                 // Update Redis context
-                addToRedisContext(userId, userMsg);
-                addToRedisContext(userId, assistantMsg);
+                // addToRedisContext(userId, userMsg);
+                // addToRedisContext(userId, assistantMsg);
+                saveToRedisContext(userId, userMsg, assistantMsg);
 
                 // Update DB session
                 List<MentorSession.MentorMessage> allMessages = session.getMessages() != null
@@ -124,7 +133,7 @@ public class MentorService {
                 allMessages.add(assistantMsg);
 
                 session.setMessages(allMessages);
-                session.setLastMessageAt(Instant.now());
+                session.setLastMessageAt(now);
                 sessionRepository.save(session);
 
                 log.info("Mentor chat — user:{} personality:{} messages:{}",
@@ -132,16 +141,12 @@ public class MentorService {
 
                 return MentorChatResponse.builder()
                                 .sessionId(session.getId())
-                                .reply(groqResponse)
+                                .reply(finalResponse) // FIX: was groqResponse
                                 .personality(personality)
                                 .messageCount(allMessages.size())
-                                .currentDifficulty(profile != null
-                                                ? profile.getCurrentDifficulty()
-                                                : "MEDIUM")
-                                .learningStyle(profile != null
-                                                ? profile.getLearningStyle()
-                                                : "PRACTICE")
-                                .timestamp(Instant.now())
+                                .currentDifficulty(profile != null ? profile.getCurrentDifficulty() : "MEDIUM")
+                                .learningStyle(profile != null ? profile.getLearningStyle() : "PRACTICE")
+                                .timestamp(now)
                                 .build();
         }
 
@@ -155,16 +160,13 @@ public class MentorService {
                                                 .sessionId(s.getId())
                                                 .sessionTopic(s.getSessionTopic())
                                                 .status(s.getStatus().name())
-                                                .messageCount(s.getMessages() != null
-                                                                ? s.getMessages().size()
-                                                                : 0)
+                                                .messageCount(s.getMessages() != null ? s.getMessages().size() : 0)
                                                 .createdAt(s.getCreatedAt())
                                                 .lastMessageAt(s.getLastMessageAt())
                                                 .messages(s.getMessages())
                                                 .build())
                                 .collect(Collectors.toList());
         }
-
         // ─── Clear context (start fresh) ──────────────────────────────────────
 
         @Transactional
@@ -172,7 +174,6 @@ public class MentorService {
                 String key = REDIS_KEY + userId;
                 redisTemplate.delete(key);
 
-                // Close current active session
                 sessionRepository
                                 .findTopByUserIdAndStatusOrderByCreatedAtDesc(
                                                 userId, MentorSession.SessionStatus.ACTIVE)
@@ -190,7 +191,6 @@ public class MentorService {
                         LearningProfile profile,
                         String userMessage) {
 
-                // Personality-based tone
                 String personalityGuide = switch (personality) {
                         case "STRICT" -> """
                                         You are strict and demanding. Push the student hard.
@@ -204,7 +204,7 @@ public class MentorService {
                                         Ask "What do you think happens when...?" instead of explaining.
                                         Only reveal the answer after the student has genuinely tried.
                                         """;
-                        default -> // ENCOURAGING
+                        default -> // ENCOURAGING — also the safe default for unknown values
                                 """
                                                 You are warm, encouraging, and patient.
                                                 Celebrate small wins. When the student is wrong,
@@ -213,29 +213,24 @@ public class MentorService {
                                                 """;
                 };
 
-                // DNA context injection
+                // DNA context injection — null-safe throughout
                 String dnaContext = "";
                 if (profile != null) {
-                        String weakList = profile.getWeakConcepts().isEmpty()
+                        String weakList = (profile.getWeakConcepts() == null || profile.getWeakConcepts().isEmpty())
                                         ? "none identified yet"
-                                        : String.join(", ",
-                                                        profile.getWeakConcepts().keySet()
-                                                                        .stream().limit(3)
-                                                                        .collect(Collectors.toList()));
+                                        : profile.getWeakConcepts().keySet().stream().limit(3)
+                                                        .collect(Collectors.joining(", "));
 
-                        String strongList = profile.getStrongConcepts().isEmpty()
-                                        ? "none identified yet"
-                                        : String.join(", ",
-                                                        profile.getStrongConcepts().keySet()
-                                                                        .stream().limit(3)
-                                                                        .collect(Collectors.toList()));
+                        String strongList = (profile.getStrongConcepts() == null
+                                        || profile.getStrongConcepts().isEmpty())
+                                                        ? "none identified yet"
+                                                        : profile.getStrongConcepts().keySet().stream().limit(3)
+                                                                        .collect(Collectors.joining(", "));
 
-                        // Get current topic from roadmap
                         String currentTopic = "not started";
                         List<String> roadmap = profile.getRoadmapTopics();
-                        int idx = profile.getCurrentTopicIndex();
-                        if (roadmap != null && !roadmap.isEmpty()
-                                        && idx < roadmap.size()) {
+                        int idx = profile.getCurrentTopicIndex() != null ? profile.getCurrentTopicIndex() : 0;
+                        if (roadmap != null && !roadmap.isEmpty() && idx < roadmap.size()) {
                                 currentTopic = roadmap.get(idx);
                         }
 
@@ -266,7 +261,7 @@ public class MentorService {
                 }
 
                 return String.format("""
-                                You are Aria, an expert AI learning mentor...
+                                You are Aria, an expert AI learning mentor.
 
                                 CONVERSATION RULES:
                                 - Keep responses focused and concise (2-4 paragraphs max)
@@ -275,7 +270,7 @@ public class MentorService {
                                 - If student seems confused, slow down and simplify
                                 - Never say "As an AI" — you ARE Aria, a real mentor
                                 - Do not repeat the student's question back to them
-                                - Always respond in English. Translation is handled separately.\n"
+                                - Always respond in English. Translation is handled separately.
                                 %s
                                 """,
                                 personalityGuide + dnaContext);
@@ -286,59 +281,44 @@ public class MentorService {
         private String callGroqWithHistory(String systemPrompt,
                         List<MentorSession.MentorMessage> history,
                         String newUserMessage) {
-                try {
-                        // Build messages array for Groq
-                        // Format: [{role, content}, ...history..., {role: user, content: new}]
-                        List<Map<String, Object>> messages = new ArrayList<>();
 
-                        // Add conversation history (last N messages)
-                        List<MentorSession.MentorMessage> recentHistory = history.size() > CONTEXT_WINDOW
-                                        ? history.subList(
-                                                        history.size() - CONTEXT_WINDOW,
-                                                        history.size())
-                                        : history;
+                List<Map<String, Object>> messages = new ArrayList<>();
 
-                        for (MentorSession.MentorMessage msg : recentHistory) {
-                                messages.add(Map.of(
-                                                "role", msg.getRole(),
-                                                "content", msg.getContent()));
-                        }
+                // Add last N messages from history
+                List<MentorSession.MentorMessage> recentHistory = history.size() > CONTEXT_WINDOW
+                                ? history.subList(history.size() - CONTEXT_WINDOW, history.size())
+                                : history;
 
-                        String finalUserMessage = """
-                                        USER MESSAGE:
-                                        %s
-
-                                        IMPORTANT:
-                                        - Ignore the language used in previous messages
-                                        - Follow ONLY the language of THIS message
-                                        """.formatted(newUserMessage);
-
-                        // Add new user message
+                for (MentorSession.MentorMessage msg : recentHistory) {
                         messages.add(Map.of(
-                                        "role", "user",
-                                        "content", finalUserMessage));
-
-                        // Call Groq with full history
-                        return aiService.callWithHistory(systemPrompt, messages);
-
-                } catch (Exception e) {
-                        log.error("Mentor Groq call failed: {}", e.getMessage());
-                        return "I'm having trouble connecting right now. " +
-                                        "Please try again in a moment!";
+                                        "role", msg.getRole(),
+                                        "content", msg.getContent()));
                 }
+
+                // Add new user message with language instruction
+                String formattedUserMessage = """
+                                USER MESSAGE:
+                                %s
+
+                                IMPORTANT:
+                                - Ignore the language used in previous messages
+                                - Follow ONLY the language of THIS message
+                                """.formatted(newUserMessage);
+
+                messages.add(Map.of("role", "user", "content", formattedUserMessage));
+
+                return aiService.callWithHistory(systemPrompt, messages);
         }
 
-        // ─── Redis context management ─────────────────────────────────────────
+        // ─── Redis context management (FIX: batch read/write) ────────────────
 
         @SuppressWarnings("unchecked")
-        private List<MentorSession.MentorMessage> getContextFromRedis(
-                        UUID userId) {
+        private List<MentorSession.MentorMessage> getContextFromRedis(UUID userId) {
                 try {
                         String key = REDIS_KEY + userId;
                         Object raw = redisTemplate.opsForValue().get(key);
                         if (raw == null)
                                 return new ArrayList<>();
-
                         return objectMapper.convertValue(raw,
                                         new TypeReference<List<MentorSession.MentorMessage>>() {
                                         });
@@ -348,19 +328,40 @@ public class MentorService {
                 }
         }
 
-        private void addToRedisContext(UUID userId,
-                        MentorSession.MentorMessage message) {
+        // private void addToRedisContext(UUID userId,
+        // MentorSession.MentorMessage message) {
+        // try {
+        // String key = REDIS_KEY + userId;
+        // List<MentorSession.MentorMessage> context = getContextFromRedis(userId);
+
+        // context.add(message);
+
+        // // Keep only last MAX_MESSAGES
+        // if (context.size() > MAX_MESSAGES) {
+        // context = context.subList(
+        // context.size() - MAX_MESSAGES,
+        // context.size());
+        // }
+
+        // redisTemplate.opsForValue().set(key, context, CONTEXT_TTL);
+        // } catch (Exception e) {
+        // log.warn("Failed to update Redis context: {}", e.getMessage());
+        // }
+        // }
+
+        private void saveToRedisContext(UUID userId,
+                        MentorSession.MentorMessage userMsg,
+                        MentorSession.MentorMessage assistantMsg) {
                 try {
                         String key = REDIS_KEY + userId;
                         List<MentorSession.MentorMessage> context = getContextFromRedis(userId);
 
-                        context.add(message);
+                        context.add(userMsg);
+                        context.add(assistantMsg);
 
                         // Keep only last MAX_MESSAGES
                         if (context.size() > MAX_MESSAGES) {
-                                context = context.subList(
-                                                context.size() - MAX_MESSAGES,
-                                                context.size());
+                                context = context.subList(context.size() - MAX_MESSAGES, context.size());
                         }
 
                         redisTemplate.opsForValue().set(key, context, CONTEXT_TTL);
@@ -371,44 +372,51 @@ public class MentorService {
 
         // ─── Session management ───────────────────────────────────────────────
 
-        private MentorSession getOrCreateSession(User user,
-                        LearningProfile profile) {
+        private MentorSession getOrCreateSession(User user, LearningProfile profile) {
                 return sessionRepository
                                 .findTopByUserIdAndStatusOrderByCreatedAtDesc(
                                                 user.getId(), MentorSession.SessionStatus.ACTIVE)
                                 .orElseGet(() -> createNewSession(user, profile));
         }
 
-        private MentorSession createNewSession(User user,
-                        LearningProfile profile) {
+        private MentorSession createNewSession(User user, LearningProfile profile) {
                 MentorSession session = MentorSession.builder()
                                 .user(user)
                                 .messages(new ArrayList<>())
                                 .status(MentorSession.SessionStatus.ACTIVE)
-                                .snapshotDifficulty(profile != null
-                                                ? profile.getCurrentDifficulty()
-                                                : "MEDIUM")
-                                .snapshotLearningStyle(profile != null
-                                                ? profile.getLearningStyle()
-                                                : "PRACTICE")
-                                .snapshotAccuracy(profile != null
-                                                ? profile.getOverallAccuracy()
-                                                : 0.0)
-                                .sessionTopic(profile != null
-                                                ? profile.getGoal()
-                                                : "General")
+                                .snapshotDifficulty(profile != null ? profile.getCurrentDifficulty() : "MEDIUM")
+                                .snapshotLearningStyle(profile != null ? profile.getLearningStyle() : "PRACTICE")
+                                .snapshotAccuracy(profile != null ? profile.getOverallAccuracy() : 0.0)
+                                .sessionTopic(profile != null ? profile.getGoal() : "General")
                                 .build();
                 return sessionRepository.save(session);
         }
 
+        private String buildFallbackResponse(String personality) {
+                return switch (personality) {
+                        case "STRICT" ->
+                                "I'm experiencing connectivity issues. Review your last concept again and try later.";
+                        case "SOCRATIC" ->
+                                "What would you explore while I reconnect? Try thinking through the problem yourself!";
+                        default -> "I'm having a moment! 😅 Give me a minute and try again — I'm here for you!";
+                };
+        }
+
+        private String translateSafely(String text, String langCode, String langName) {
+                try {
+                        return languageService.translateFromEnglish(text, langCode, langName);
+                } catch (Exception e) {
+                        log.warn("Translation failed, returning English: {}", e.getMessage());
+                        return text;
+                }
+        }
+
         // ─── Helpers ──────────────────────────────────────────────────────────
 
-        private String resolvePersonality(String override,
-                        LearningProfile profile) {
+        private String resolvePersonality(String override, LearningProfile profile) {
                 if (override != null && !override.isBlank()) {
                         return override.toUpperCase();
                 }
-                // Default personality based on learning style
                 if (profile != null) {
                         return switch (profile.getLearningStyle()) {
                                 case "READING" -> "SOCRATIC";
@@ -429,7 +437,6 @@ public class MentorService {
                 if (message == null)
                         return false;
                 String lower = message.toLowerCase();
-                // Store if it looks like a learning question
                 return lower.contains("what is") ||
                                 lower.contains("how does") ||
                                 lower.contains("explain") ||

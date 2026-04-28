@@ -31,8 +31,8 @@ public class QuizService {
         private final LanguageService languageService;
 
         private static final String HINT_KEY = "quiz:hints:";
-
         private static final int QUESTIONS_PER_SESSION = 5;
+        private static final int HISTORY_PAGE_SIZE = 10;
 
         // ─── Start a new quiz session ─────────────────────────────────────────
 
@@ -59,13 +59,24 @@ public class QuizService {
                 String difficulty = profile.getCurrentDifficulty();
                 String learningStyle = profile.getLearningStyle();
 
-                log.info("Generating quiz for user:{} concept:{} difficulty:{} style:{}",
+                log.info("Generating quiz — user:{} concept:{} difficulty:{} style:{}",
                                 userId, conceptName, difficulty, learningStyle);
 
-                // Generate questions via AI (injecting DNA)
-                List<QuizSession.QuizQuestionData> questions = aiService.generateQuizForConcept(
-                                conceptName, difficulty, learningStyle,
-                                QUESTIONS_PER_SESSION);
+                // Generate questions — wrap in try/catch so Groq failure gives a clean error
+                List<QuizSession.QuizQuestionData> questions;
+                try {
+                        questions = aiService.generateQuizForConcept(
+                                        conceptName, difficulty, learningStyle, QUESTIONS_PER_SESSION);
+                } catch (Exception e) {
+                        log.error("Quiz generation failed for concept {}: {}", conceptName, e.getMessage());
+                        throw AppException.badRequest(
+                                        "Could not generate quiz right now. Please try again in a moment.");
+                }
+
+                if (questions == null || questions.isEmpty()) {
+                        throw AppException.badRequest(
+                                        "AI returned empty quiz. Please try again.");
+                }
 
                 QuizSession session = QuizSession.builder()
                                 .user(user)
@@ -80,7 +91,7 @@ public class QuizService {
                 session = sessionRepository.save(session);
                 log.info("Quiz session created: {}", session.getId());
 
-                // Return questions WITHOUT correct answer index (security)
+                // Return WITHOUT correct answer indices — answers stay server-side
                 return mapToSessionResponse(session, false);
         }
 
@@ -93,30 +104,28 @@ public class QuizService {
                         int selectedIndex,
                         long timeTakenMs) {
 
+                // SECURITY: always load session from DB — never trust client for correct answer
                 QuizSession session = getActiveSession(sessionId, userId);
                 User user = session.getUser();
 
-                LearningProfile profile = profileRepository
-                                .findByUserId(userId).orElse(null);
+                LearningProfile profile = profileRepository.findByUserId(userId).orElse(null);
 
                 // Validate bounds
-                if (questionIndex < 0 ||
-                                questionIndex >= session.getQuestions().size()) {
+                if (questionIndex < 0 || questionIndex >= session.getQuestions().size()) {
                         throw AppException.badRequest("Invalid question index");
                 }
 
                 // Check not already answered
-                List<QuizAttempt> existing = attemptRepository.findBySessionIdOrderByQuestionIndexAsc(
-                                sessionId);
+                List<QuizAttempt> existing = attemptRepository
+                                .findBySessionIdOrderByQuestionIndexAsc(sessionId);
                 boolean alreadyAnswered = existing.stream()
                                 .anyMatch(a -> a.getQuestionIndex() == questionIndex);
                 if (alreadyAnswered) {
-                        throw AppException.conflict(
-                                        "Question " + questionIndex + " already answered");
+                        throw AppException.conflict("Question " + questionIndex + " already answered");
                 }
 
+                // Correct answer comes from DB (server-side) — NOT from client
                 QuizSession.QuizQuestionData qData = session.getQuestions().get(questionIndex);
-
                 boolean correct = (selectedIndex == qData.getCorrectAnswerIndex());
                 int hintsUsed = countHintsUsed(sessionId, questionIndex);
 
@@ -146,22 +155,23 @@ public class QuizService {
                 log.info("Answer submitted — user:{} q:{} correct:{} time:{}ms",
                                 userId, questionIndex, correct, timeTakenMs);
 
-                String langCode = "en";
-                String langName = "English";
-                if (profile != null &&
-                                !"English".equalsIgnoreCase(
-                                                profile.getPreferredLanguage())) {
-                        // Detect from profile language name
-                        LanguageService.DetectionResult det = languageService.detect(
-                                        profile.getPreferredLanguage());
-                        langCode = det.languageCode();
-                        langName = profile.getPreferredLanguage();
-                }
-
+                // ── Translate explanation if needed ───────────────────────────────
                 String explanation = qData.getExplanation();
-                if (!"en".equals(langCode)) {
-                        explanation = languageService.translateFromEnglish(
-                                        explanation, langCode, langName);
+                if (profile != null &&
+                                !"English".equalsIgnoreCase(profile.getPreferredLanguage())) {
+                        try {
+                                LanguageService.DetectionResult det = languageService
+                                                .detect(profile.getPreferredLanguage());
+                                if (!"en".equals(det.languageCode())) {
+                                        explanation = languageService.translateFromEnglish(
+                                                        explanation,
+                                                        det.languageCode(),
+                                                        profile.getPreferredLanguage());
+                                }
+                        } catch (Exception e) {
+                                log.warn("Explanation translation failed, using English: {}", e.getMessage());
+                                // Keep English explanation — non-critical
+                        }
                 }
 
                 return AnswerFeedbackResponse.builder()
@@ -173,7 +183,6 @@ public class QuizService {
                                 .conceptName(session.getConceptName())
                                 .build();
         }
-
         // ─── Get a hint for a question ────────────────────────────────────────
 
         public HintResponse getHint(UUID userId,
@@ -183,8 +192,7 @@ public class QuizService {
 
                 QuizSession session = getActiveSession(sessionId, userId);
 
-                if (questionIndex < 0 ||
-                                questionIndex >= session.getQuestions().size()) {
+                if (questionIndex < 0 || questionIndex >= session.getQuestions().size()) {
                         throw AppException.badRequest("Invalid question index");
                 }
 
@@ -200,10 +208,17 @@ public class QuizService {
                 if (hints != null && hints.size() >= hintNumber) {
                         hintText = hints.get(hintNumber - 1);
                 } else {
-                        hintText = aiService.generateHint(
-                                        qData.getQuestion(),
-                                        session.getConceptName(),
-                                        hintNumber);
+                        // Fallback to live generation — with error handling
+                        try {
+                                hintText = aiService.generateHint(
+                                                qData.getQuestion(),
+                                                session.getConceptName(),
+                                                hintNumber);
+                        } catch (Exception e) {
+                                log.warn("Live hint generation failed: {}", e.getMessage());
+                                hintText = "Think carefully about the core concept of " +
+                                                session.getConceptName() + " and what the question is testing.";
+                        }
                 }
 
                 log.info("Hint {} given — user:{} session:{} q:{}",
@@ -225,27 +240,32 @@ public class QuizService {
 
                 QuizSession session = getActiveSession(sessionId, userId);
 
-                List<QuizAttempt> attempts = attemptRepository.findBySessionIdOrderByQuestionIndexAsc(
-                                sessionId);
+                List<QuizAttempt> attempts = attemptRepository
+                                .findBySessionIdOrderByQuestionIndexAsc(sessionId);
 
                 int totalCorrect = (int) attempts.stream()
-                                .filter(QuizAttempt::getCorrect).count();
+                                .filter(QuizAttempt::getCorrect)
+                                .count();
 
                 session.setStatus(QuizSession.SessionStatus.COMPLETED);
                 session.setTotalCorrect(totalCorrect);
                 session.setCompletedAt(Instant.now());
                 sessionRepository.save(session);
 
-                double accuracy = attempts.isEmpty() ? 0.0
+                // FIX: avoid divide-by-zero when user completes with 0 answered questions
+                double accuracy = attempts.isEmpty()
+                                ? 0.0
                                 : (double) totalCorrect / attempts.size() * 100;
 
+                long totalTimeMs = attempts.stream()
+                                .mapToLong(QuizAttempt::getTimeTakenMs)
+                                .sum();
+
                 // Fetch updated profile to show DNA changes
-                LearningProfile profile = profileRepository
-                                .findByUserId(userId).orElse(null);
+                LearningProfile profile = profileRepository.findByUserId(userId).orElse(null);
 
                 log.info("Session completed — user:{} score:{}/{} accuracy:{}%",
-                                userId, totalCorrect, attempts.size(),
-                                Math.round(accuracy));
+                                userId, totalCorrect, attempts.size(), Math.round(accuracy));
 
                 return QuizResultResponse.builder()
                                 .sessionId(sessionId)
@@ -253,17 +273,15 @@ public class QuizService {
                                 .totalQuestions(attempts.size())
                                 .totalCorrect(totalCorrect)
                                 .accuracyPercent(Math.round(accuracy * 10.0) / 10.0)
-                                .timeTakenMs(attempts.stream()
-                                                .mapToLong(QuizAttempt::getTimeTakenMs).sum())
+                                .timeTakenMs(totalTimeMs)
                                 .difficulty(session.getDifficulty())
-                                .updatedDifficulty(profile != null ? profile.getCurrentDifficulty()
+                                .updatedDifficulty(profile != null
+                                                ? profile.getCurrentDifficulty()
                                                 : session.getDifficulty())
                                 .difficultyChanged(profile != null &&
-                                                !profile.getCurrentDifficulty()
-                                                                .equals(session.getDifficulty()))
+                                                !profile.getCurrentDifficulty().equals(session.getDifficulty()))
                                 .build();
         }
-
         // ─── Get session history ──────────────────────────────────────────────
 
         public List<QuizSessionResponse> getHistory(UUID userId) {
@@ -278,31 +296,40 @@ public class QuizService {
 
         private QuizSession getActiveSession(UUID sessionId, UUID userId) {
                 QuizSession session = sessionRepository.findById(sessionId)
-                                .orElseThrow(() -> AppException.notFound(
-                                                "Quiz session not found"));
+                                .orElseThrow(() -> AppException.notFound("Quiz session not found"));
 
                 if (!session.getUser().getId().equals(userId)) {
                         throw AppException.forbidden("Not your session");
                 }
 
                 if (session.getStatus() != QuizSession.SessionStatus.IN_PROGRESS) {
-                        throw AppException.badRequest(
-                                        "Session is already " + session.getStatus());
+                        throw AppException.badRequest("Session is already " + session.getStatus());
                 }
                 return session;
         }
 
         private int countHintsUsed(UUID sessionId, int questionIndex) {
                 String key = HINT_KEY + sessionId + ":" + questionIndex;
-                Object val = redisTemplate.opsForValue().get(key);
-                return val != null ? Integer.parseInt(val.toString()) : 0;
+                try {
+                        Object val = redisTemplate.opsForValue().get(key);
+                        if (val == null)
+                                return 0;
+                        return Integer.parseInt(val.toString());
+                } catch (Exception e) {
+                        log.warn("Failed to count hints for session {}, q{}: {}", sessionId, questionIndex,
+                                        e.getMessage());
+                        return 0;
+                }
         }
 
         public void trackHintUsed(UUID sessionId, int questionIndex) {
                 String key = HINT_KEY + sessionId + ":" + questionIndex;
-                redisTemplate.opsForValue().increment(key);
-                redisTemplate.expire(key,
-                                java.time.Duration.ofHours(24));
+                try {
+                        redisTemplate.opsForValue().increment(key);
+                        redisTemplate.expire(key, java.time.Duration.ofHours(24));
+                } catch (Exception e) {
+                        log.warn("Failed to track hint: {}", e.getMessage());
+                }
         }
 
         private User getUser(UUID userId) {
@@ -318,11 +345,12 @@ public class QuizService {
                                                 .questionNumber(q.getQuestionNumber())
                                                 .question(q.getQuestion())
                                                 .options(q.getOptions())
-                                                // Only include correct answer if session is done
-                                                .correctAnswerIndex(includeAnswers ||
-                                                                session.getStatus() == QuizSession.SessionStatus.COMPLETED
-                                                                                ? q.getCorrectAnswerIndex()
-                                                                                : -1)
+                                                // Only expose correct answer when session is done
+                                                .correctAnswerIndex(
+                                                                includeAnswers || session
+                                                                                .getStatus() == QuizSession.SessionStatus.COMPLETED
+                                                                                                ? q.getCorrectAnswerIndex()
+                                                                                                : -1)
                                                 .build())
                                 .collect(Collectors.toList());
 

@@ -2,6 +2,7 @@ package com.learningai.backend.controller;
 
 import com.learningai.backend.dto.response.ApiResponse;
 import com.learningai.backend.entity.ScrapedContent;
+import com.learningai.backend.repository.ContentEmbeddingRepository;
 import com.learningai.backend.repository.ScrapedContentRepository;
 import com.learningai.backend.service.scraper.ContentPipelineService;
 import com.learningai.backend.service.scraper.GroqUrlSuggestionService;
@@ -11,11 +12,13 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -24,10 +27,11 @@ import java.util.Optional;
 @SecurityRequirement(name = "bearerAuth")
 public class AdminController {
 
-    private final WebScraperService        scraperService;
-    private final GroqUrlSuggestionService urlSuggestionService;
-    private final ContentPipelineService   pipelineService;
-    private final ScrapedContentRepository contentRepository;
+    private final WebScraperService         scraperService;
+    private final GroqUrlSuggestionService  urlSuggestionService;
+    private final ContentPipelineService    pipelineService;
+    private final ScrapedContentRepository  contentRepository;
+    private final ContentEmbeddingRepository embeddingRepository;
 
     @PostMapping("/scrape")
     @Operation(summary = "Manually scrape a URL and tag it to a topic")
@@ -42,18 +46,18 @@ public class AdminController {
         if (result.isPresent()) {
             ScrapedContent c = result.get();
             return ResponseEntity.ok(ApiResponse.ok(
-                "Scraped successfully",
-                Map.of(
-                    "id",        c.getId(),
-                    "title",     c.getTitle(),
-                    "wordCount", c.getWordCount(),
-                    "source",    c.getSource()
-                )
+                    "Scraped successfully",
+                    Map.of(
+                        "id",        c.getId(),
+                        "title",     c.getTitle(),
+                        "wordCount", c.getWordCount(),
+                        "source",    c.getSource()
+                    )
             ));
         }
 
         return ResponseEntity.ok(
-            ApiResponse.error("Scraping failed or duplicate", "SCRAPE_FAILED"));
+                ApiResponse.error("Scraping failed or duplicate", "SCRAPE_FAILED"));
     }
 
     @PostMapping("/scrape/topic")
@@ -61,8 +65,7 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> scrapeTopic(
             @RequestParam String topicGoal,
             @RequestParam String conceptName,
-            @RequestParam(defaultValue = "What are the fundamentals?")
-                String question) {
+            @RequestParam(defaultValue = "What are the fundamentals?") String question) {
 
         List<String> suggestedUrls = urlSuggestionService.suggestUrls(
                 question, topicGoal, conceptName);
@@ -71,12 +74,12 @@ public class AdminController {
                 suggestedUrls, topicGoal, conceptName, "ADMIN_GROQ");
 
         return ResponseEntity.ok(ApiResponse.ok(
-            "Topic scrape complete",
-            Map.of(
-                "urlsSuggested", suggestedUrls.size(),
-                "pagesScraped",  scraped.size(),
-                "urls",          suggestedUrls
-            )
+                "Topic scrape complete",
+                Map.of(
+                    "urlsSuggested", suggestedUrls.size(),
+                    "pagesScraped",  scraped.size(),
+                    "urls",          suggestedUrls
+                )
         ));
     }
 
@@ -86,9 +89,8 @@ public class AdminController {
             @RequestParam String conceptTag) {
 
         List<ScrapedContent> content =
-            contentRepository
-                .findByConceptTagIgnoreCaseOrderByRetrievalCountDesc(
-                    conceptTag);
+                contentRepository
+                        .findByConceptTagIgnoreCaseOrderByRetrievalCountDesc(conceptTag);
 
         return ResponseEntity.ok(ApiResponse.ok(content));
     }
@@ -98,32 +100,32 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> stats(
             @RequestParam String conceptTag) {
 
-        long count = contentRepository
-                .countByConceptTagIgnoreCase(conceptTag);
+        long count = contentRepository.countByConceptTagIgnoreCase(conceptTag);
 
         long unembedded = contentRepository
                 .findByEmbeddedFalseOrderByScrapedAtAsc()
                 .stream()
-                .filter(c -> c.getConceptTag()
-                        .equalsIgnoreCase(conceptTag))
+                .filter(c -> c.getConceptTag().equalsIgnoreCase(conceptTag))
                 .count();
 
         return ResponseEntity.ok(ApiResponse.ok(
-            Map.of(
-                "totalPages",      count,
-                "unembedded",      unembedded,
-                "readyForRag",     count - unembedded,
-                "hasEnoughContent", pipelineService.hasEnoughContent(conceptTag)
-            )
+                Map.of(
+                    "totalPages",       count,
+                    "unembedded",       unembedded,
+                    "readyForRag",      count - unembedded,
+                    "hasEnoughContent", pipelineService.hasEnoughContent(conceptTag)
+                )
         ));
     }
 
     @DeleteMapping("/content/{id}")
-    @Operation(summary = "Delete a scraped content entry")
-    public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable java.util.UUID id) {
+    @Transactional
+    @Operation(summary = "Delete a scraped content entry and its embeddings")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
+        // Delete associated embeddings first (no cascade in JPA)
+        embeddingRepository.deleteByContentId(id);
+        // Now delete the content row
         contentRepository.deleteById(id);
-        return ResponseEntity.ok(
-            ApiResponse.ok("Deleted", null));
+        return ResponseEntity.ok(ApiResponse.ok("Deleted content and embeddings", null));
     }
 }

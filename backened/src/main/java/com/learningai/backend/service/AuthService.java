@@ -13,14 +13,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
+    private final UserRepository  userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final JwtService      jwtService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -36,13 +41,15 @@ public class AuthService {
                 .build();
 
         user = userRepository.save(user);
+
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
-        user.setRefreshToken(refreshToken);
 
+        // FIX: store hash of refresh token, not the raw token
+        user.setRefreshToken(hashToken(refreshToken));
         userRepository.save(user);
-        log.info("New user registered: {}", user.getEmail());
 
+        log.info("New user registered: {}", user.getEmail());
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 
@@ -61,7 +68,9 @@ public class AuthService {
 
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
-        user.setRefreshToken(refreshToken);
+
+        // FIX: store hash of refresh token
+        user.setRefreshToken(hashToken(refreshToken));
         userRepository.save(user);
 
         log.info("User logged in: {}", user.getEmail());
@@ -70,9 +79,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
-        String token = request.getRefreshToken();
+        String token     = request.getRefreshToken();
+        String tokenHash = hashToken(token);
 
-        User user = userRepository.findByRefreshToken(token)
+        // FIX: look up by hash, not raw token
+        User user = userRepository.findByRefreshToken(tokenHash)
                 .orElseThrow(() -> AppException.unauthorized("Invalid refresh token"));
 
         if (!jwtService.isRefreshTokenValid(token, user)) {
@@ -83,7 +94,9 @@ public class AuthService {
 
         String newAccessToken  = jwtService.generateAccessToken(user);
         String newRefreshToken = jwtService.generateRefreshToken(user);
-        user.setRefreshToken(newRefreshToken);
+
+        // FIX: store new hash
+        user.setRefreshToken(hashToken(newRefreshToken));
         userRepository.save(user);
 
         log.info("Token refreshed for: {}", user.getEmail());
@@ -99,6 +112,21 @@ public class AuthService {
         });
     }
 
+    // ─── Hash a token with SHA-256 ────────────────────────────────────────
+    // Returns lowercase hex string — safe to store in DB
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(
+                    token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            log.error("Failed to hash token: {}", e.getMessage());
+            throw new RuntimeException("Token hashing failed");
+        }
+    }
+
     private AuthResponse buildAuthResponse(User user,
                                             String accessToken,
                                             String refreshToken) {
@@ -108,7 +136,7 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .role(user.getRole().name())
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
+                .refreshToken(refreshToken)   // raw token returned to client only
                 .accessTokenExpiresIn(jwtService.getExpiryMs())
                 .build();
     }
