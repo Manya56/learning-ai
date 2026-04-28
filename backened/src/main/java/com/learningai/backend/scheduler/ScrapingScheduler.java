@@ -2,7 +2,6 @@ package com.learningai.backend.scheduler;
 
 import com.learningai.backend.entity.ScrapedContent;
 import com.learningai.backend.repository.ScrapedContentRepository;
-import com.learningai.backend.service.scraper.ContentPipelineService;
 import com.learningai.backend.service.scraper.EmbeddingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,47 +12,68 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ScrapingScheduler {
 
-    private final ScrapedContentRepository  contentRepository;
-    private final ContentPipelineService    pipelineService;
-    private final EmbeddingService          embeddingService;
+    private final ScrapedContentRepository contentRepository;
+    private final EmbeddingService         embeddingService;
 
-    // ─── Weekly re-scrape of all indexed topics ───────────────────────────
+    // ─── Weekly re-embed of stale content ────────────────────────────────
+    // Every Sunday at 2AM
 
-    @Scheduled(cron = "0 0 2 * * SUN") // Every Sunday at 2AM
+    @Scheduled(cron = "0 0 2 * * SUN")
     public void refreshStaleContent() {
         log.info("ScrapingScheduler: weekly content refresh starting");
 
-        // Find content older than 7 days
-        Instant staleThreshold = Instant.now()
-                .minus(7, ChronoUnit.DAYS);
-
+        // FIX: DB-level filter — no longer loads entire table into memory
+        Instant staleThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
         List<ScrapedContent> stale = contentRepository
-                .findAll().stream()
-                .filter(c -> c.getScrapedAt().isBefore(staleThreshold))
-                .toList();
+                .findByScrapedAtBefore(staleThreshold);
 
-        log.info("Found {} stale content items to refresh", stale.size());
+        log.info("Found {} stale content items (older than 7 days)", stale.size());
 
-        // Re-embed any content that failed embedding
+        // Re-mark as unembedded so they get re-processed
+        for (ScrapedContent content : stale) {
+            try {
+                content.setEmbedded(false);
+                contentRepository.save(content);
+            } catch (Exception e) {
+                log.warn("Failed to mark content {} as unembedded: {}",
+                        content.getId(), e.getMessage());
+            }
+        }
+
+        // Embed anything that failed before
         List<ScrapedContent> unembedded = contentRepository
                 .findByEmbeddedFalseOrderByScrapedAtAsc();
 
         if (!unembedded.isEmpty()) {
-            log.info("Re-embedding {} failed items", unembedded.size());
-            unembedded.forEach(embeddingService::embedContent);
+            log.info("Re-embedding {} items", unembedded.size());
+            // Process in batches to avoid overwhelming memory
+            int batchSize = 20;
+            for (int i = 0; i < unembedded.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, unembedded.size());
+                List<ScrapedContent> batch = unembedded.subList(i, end);
+                batch.forEach(c -> {
+                    try {
+                        embeddingService.embedContent(c);
+                    } catch (Exception e) {
+                        log.warn("Failed to embed content {}: {}", c.getId(), e.getMessage());
+                    }
+                });
+            }
         }
 
         log.info("ScrapingScheduler: weekly refresh complete");
     }
 
-    // ─── Daily embedding check — embed anything missed ────────────────────
+    // ─── Daily embedding check ────────────────────────────────────────────
+    // Daily at 1:30AM — embed anything missed during the day
 
-    @Scheduled(cron = "0 30 1 * * *") // Daily at 1:30AM
+    @Scheduled(cron = "0 30 1 * * *")
     public void embedPendingContent() {
         List<ScrapedContent> pending = contentRepository
                 .findByEmbeddedFalseOrderByScrapedAtAsc();
@@ -63,8 +83,7 @@ public class ScrapingScheduler {
             return;
         }
 
-        log.info("ScrapingScheduler: embedding {} pending items",
-                pending.size());
+        log.info("ScrapingScheduler: embedding {} pending items", pending.size());
         embeddingService.embedAllPending();
     }
 }

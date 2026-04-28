@@ -1,2 +1,2 @@
 
-SELECT * FROM scraped_content;
+SELECT * FROM topics;
