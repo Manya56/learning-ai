@@ -7,4 +7,6 @@ import lombok.Data;
 public class StartQuizRequest {
     @NotBlank(message = "Concept name is required")
     private String conceptName;
+    @NotBlank(message = "Topic goal is required")
+    private String topicGoal;
 }

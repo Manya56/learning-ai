@@ -15,4 +15,9 @@ public class QuizResultResponse {
     private String difficulty;         // difficulty when session started
     private String updatedDifficulty;  // difficulty after DNA update
     private boolean difficultyChanged; // true if engine changed it
+
+    private int     roadmapTopicProgress;   // 0-100
+    private boolean roadmapTopicCompleted;  // true if topic just finished
+    private String  nextConceptToStudy;     // what to do next
+    private String  roadmapMessage; 
 }
