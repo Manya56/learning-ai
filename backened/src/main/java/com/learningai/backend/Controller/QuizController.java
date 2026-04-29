@@ -33,7 +33,7 @@ public class QuizController {
             @Valid @RequestBody StartQuizRequest request) {
 
         QuizSessionResponse session = quizService.startSession(
-                user.getId(), request.getConceptName());
+                user.getId(), request.getConceptName(),request.getTopicGoal());
 
         return ResponseEntity.ok(ApiResponse.ok(
                 "Quiz session started", session));

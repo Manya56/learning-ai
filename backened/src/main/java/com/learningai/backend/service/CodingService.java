@@ -24,129 +24,131 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CodingService {
 
-    private final AiService                 aiService;
-    private final CodingAttemptRepository   attemptRepository;
-    private final LearningProfileRepository profileRepository;
-    private final UserRepository            userRepository;
-    private final LearningProfileService    profileService;
+        private final AiService aiService;
+        private final CodingAttemptRepository attemptRepository;
+        private final LearningProfileRepository profileRepository;
+        private final UserRepository userRepository;
+        private final LearningProfileService profileService;
+        private final RoadmapService roadmapService; // NEW
 
-    // ─── Generate a problem ───────────────────────────────────────────────
+        // ─── Generate a problem ───────────────────────────────────────────────
 
-    public ProblemResponse generateProblem(UUID userId,
-                                            GenerateProblemRequest request) {
+        public ProblemResponse generateProblem(UUID userId,
+                        GenerateProblemRequest request) {
 
-        LearningProfile profile = getProfile(userId);
+                LearningProfile profile = getProfile(userId);
 
-        // Use request values if provided, else fall back to DNA
-        String difficulty = request.getDifficulty() != null
-                ? request.getDifficulty()
-                : profile.getCurrentDifficulty();
+                // Use request values if provided, else fall back to DNA
+                String difficulty = request.getDifficulty() != null
+                                ? request.getDifficulty()
+                                : profile.getCurrentDifficulty();
 
-        String topicGoal = request.getTopicGoal() != null
-                ? request.getTopicGoal()
-                : profile.getGoal();
+                String topicGoal = request.getTopicGoal() != null
+                                ? request.getTopicGoal()
+                                : profile.getGoal();
 
-        String learningStyle = profile.getLearningStyle();
+                String learningStyle = profile.getLearningStyle();
 
-        log.info("Generating problem — user:{} concept:{} topic:{} diff:{}",
-                userId, request.getConceptName(), topicGoal, difficulty);
+                log.info("Generating problem — user:{} concept:{} topic:{} diff:{}",
+                                userId, request.getConceptName(), topicGoal, difficulty);
 
-        return aiService.generateProblem(
-                request.getConceptName(),
-                topicGoal,
-                difficulty,
-                learningStyle
-        );
-    }
+                return aiService.generateProblem(
+                                request.getConceptName(),
+                                topicGoal,
+                                difficulty,
+                                learningStyle);
+        }
 
-    // ─── Evaluate a submission ────────────────────────────────────────────
+        // ─── Evaluate a submission ────────────────────────────────────────────
 
-    @Transactional
-    public EvaluationResult evaluateSubmission(UUID userId,
-                                                EvaluateSubmissionRequest request) {
+        @Transactional
+        public EvaluationResult evaluateSubmission(UUID userId,
+                        EvaluateSubmissionRequest request) {
 
-        User user            = getUser(userId);
-        LearningProfile profile = getProfile(userId);
+                User user = getUser(userId);
+                LearningProfile profile = getProfile(userId);
 
-        log.info("Evaluating submission — user:{} concept:{} type:{}",
-                userId, request.getConceptName(), request.getProblemType());
+                log.info("Evaluating — user:{} concept:{} type:{}",
+                                userId, request.getConceptName(), request.getProblemType());
 
-        // Get AI evaluation
-        EvaluationResult result = aiService.evaluateSubmission(
-                request.getProblemStatement(),
-                request.getUserSubmission(),
-                request.getProblemType(),
-                request.getLanguage(),
-                request.getConceptName()
-        );
+                EvaluationResult result = aiService.evaluateSubmission(
+                                request.getProblemStatement(),
+                                request.getUserSubmission(),
+                                request.getProblemType(),
+                                request.getLanguage(),
+                                request.getConceptName());
 
-        // Save the attempt to DB
-        CodingAttempt attempt = CodingAttempt.builder()
-                .user(user)
-                .conceptName(request.getConceptName())
-                .problemStatement(request.getProblemStatement())
-                .problemType(request.getProblemType())
-                .language(request.getLanguage())
-                .userSubmission(request.getUserSubmission())
-                .score(result.getScore())
-                .feedback(buildFeedbackText(result))
-                .passed(result.isPassed())
-                .timeTakenMs(request.getTimeTakenMs())
-                .difficulty(profile.getCurrentDifficulty())
-                .build();
+                CodingAttempt attempt = CodingAttempt.builder()
+                                .user(user).conceptName(request.getConceptName())
+                                .problemStatement(request.getProblemStatement())
+                                .problemType(request.getProblemType())
+                                .language(request.getLanguage())
+                                .userSubmission(request.getUserSubmission())
+                                .score(result.getScore())
+                                .feedback(buildFeedbackText(result))
+                                .passed(result.isPassed())
+                                .timeTakenMs(request.getTimeTakenMs())
+                                .difficulty(profile.getCurrentDifficulty())
+                                .build();
 
-        attempt = attemptRepository.save(attempt);
-        result.setAttemptId(attempt.getId());
+                attempt = attemptRepository.save(attempt);
+                result.setAttemptId(attempt.getId());
 
-        // Update Learning DNA — treat score >= 6 as correct
-        boolean correct = result.getScore() >= 6;
-        profileService.recordAttempt(
-                userId,
-                request.getConceptName(),
-                correct,
-                request.getTimeTakenMs(),
-                false,  // no hints in coding problems
-                "CODING".equals(request.getProblemType())
-        );
+                boolean correct = result.getScore() >= 6;
+                profileService.recordAttempt(userId, request.getConceptName(),
+                                correct, request.getTimeTakenMs(), false,
+                                "CODING".equals(request.getProblemType()));
 
-        log.info("Submission evaluated — score:{}/10 passed:{} user:{}",
-                result.getScore(), result.isPassed(), userId);
+                // NEW: notify roadmap with practice score (score/10 as 0.0-1.0)
+                try {
+                        RoadmapService.ConceptCompleteResponse roadmapResult = roadmapService.markConceptComplete(
+                                        userId,
+                                        request.getConceptName(),
+                                        "PRACTICE",
+                                        result.getScore() / 10.0);
+                        result.setRoadmapTopicProgress(roadmapResult.getTopicProgressPercent());
+                        result.setRoadmapMessage(roadmapResult.getMessage());
+                        result.setNextConceptToStudy(roadmapResult.getNextConceptToStudy());
+                } catch (Exception e) {
+                        log.warn("Roadmap update after practice failed (non-fatal): {}", e.getMessage());
+                }
 
-        return result;
-    }
+                log.info("Evaluated — score:{}/10 passed:{} user:{}", result.getScore(), result.isPassed(), userId);
+                return result;
+        }
 
-    // ─── Get attempt history ──────────────────────────────────────────────
+        // ─── Get attempt history ──────────────────────────────────────────────
 
-    public List<CodingAttempt> getHistory(UUID userId) {
-        return attemptRepository
-                .findTop10ByUserIdOrderByAttemptedAtDesc(userId);
-    }
+        public List<CodingAttempt> getHistory(UUID userId) {
+                return attemptRepository
+                                .findTop10ByUserIdOrderByAttemptedAtDesc(userId);
+        }
 
-    // ─── Get attempts for a specific concept ─────────────────────────────
+        // ─── Get attempts for a specific concept ─────────────────────────────
 
-    public List<CodingAttempt> getConceptHistory(UUID userId,
-                                                   String conceptName) {
-        return attemptRepository
-                .findByUserIdAndConceptNameOrderByAttemptedAtDesc(
-                        userId, conceptName);
-    }
+        public List<CodingAttempt> getConceptHistory(UUID userId,
+                        String conceptName) {
+                return attemptRepository
+                                .findByUserIdAndConceptNameOrderByAttemptedAtDesc(
+                                                userId, conceptName);
+        }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────
+        // ─── Helpers ─────────────────────────────────────────────────────────
 
-    private String buildFeedbackText(EvaluationResult result) {
-        return "STRENGTHS: " + result.getStrengths() +
-               "\nISSUES: "    + result.getIssues() +
-               "\nSUGGESTIONS: " + result.getSuggestions();
-    }
+        private String buildFeedbackText(EvaluationResult result) {
+                return "STRENGTHS: " + result.getStrengths() +
+                                "\nISSUES: " + result.getIssues() +
+                                "\nSUGGESTIONS: " + result.getSuggestions();
+        }
 
-    private LearningProfile getProfile(UUID userId) {
-        return profileRepository.findByUserId(userId)
-                .orElseThrow(() -> AppException.notFound(
-                    "Complete onboarding first"));
-    }
+        private LearningProfile getProfile(UUID userId) {
+                return profileRepository.findByUserId(userId)
+                                .orElseThrow(() -> AppException.notFound(
+                                                "Complete onboarding first"));
+        }
 
-    private User getUser(UUID userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> AppException.notFound("User not found"));
-    }
+        private User getUser(UUID userId) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> AppException.notFound("User not found"));
+        }
 }

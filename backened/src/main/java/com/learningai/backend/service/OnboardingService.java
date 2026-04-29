@@ -22,20 +22,20 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OnboardingService {
 
-    private final LearningProfileRepository     profileRepository;
-    private final UserRepository                userRepository;
-    private final AiService                     aiService;
-    private final ContentPipelineService        contentPipelineService;
+    private final LearningProfileRepository profileRepository;
+    private final UserRepository userRepository;
+    private final AiService aiService;
+    private final ContentPipelineService contentPipelineService;
+    private final RoadmapService roadmapService;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    private static final String   QUIZ_ANSWERS_KEY = "onboarding:quiz:answers:";
-    private static final Duration QUIZ_TTL         = Duration.ofMinutes(30);
+    private static final String QUIZ_ANSWERS_KEY = "onboarding:quiz:answers:";
+    private static final Duration QUIZ_TTL = Duration.ofMinutes(30);
 
     // ─── Step 1: Generate knowledge quiz ──────────────────────────────────
 
@@ -75,97 +75,77 @@ public class OnboardingService {
     // ─── Step 2: Submit quiz answers + complete onboarding ────────────────
 
     @Transactional
-    public OnboardingResponse completeOnboarding(
-            UUID userId,
+    public OnboardingResponse completeOnboarding(UUID userId,
             OnboardingRequest onboardingRequest,
             KnowledgeQuizAnswerRequest quizAnswers) {
 
         User user = getUser(userId);
-
-        if (profileRepository.existsByUser(user)) {
+        if (profileRepository.existsByUser(user))
             throw AppException.conflict("User already completed onboarding");
-        }
 
-        // FIX: load correct answers from server-side Redis cache
+        // Server-side answer lookup
         String cacheKey = QUIZ_ANSWERS_KEY + userId;
-
-        @SuppressWarnings("unchecked")
-        List<Integer> serverCorrectAnswers = null;
-
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            try {
-                // Redis may return ArrayList<Integer> or ArrayList<LinkedHashMap>
-                if (cached instanceof List<?> list) {
-                    serverCorrectAnswers = list.stream()
-                            .map(o -> Integer.parseInt(o.toString()))
-                            .collect(Collectors.toList());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse cached answers for user {}: {}", userId, e.getMessage());
-            }
+        List<Integer> serverAnswers = null;
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached instanceof List<?> list)
+                serverAnswers = list.stream()
+                        .map(o -> Integer.parseInt(o.toString()))
+                        .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Failed to load cached answers for {}: {}", userId, e.getMessage());
         }
 
-        // Calculate score
-        int score;
-        int total = quizAnswers.getAnswers().size();
+        int score = serverAnswers != null && !serverAnswers.isEmpty()
+                ? calculateScore(quizAnswers.getAnswers(), serverAnswers)
+                : calculateScore(quizAnswers.getAnswers(), quizAnswers.getCorrectAnswers());
 
-        if (serverCorrectAnswers != null && !serverCorrectAnswers.isEmpty()) {
-            // Use server-side answers — tamper-proof
-            score = calculateQuizScore(quizAnswers.getAnswers(), serverCorrectAnswers);
-            log.info("Score calculated from server-side answers for user: {}", userId);
-            // Clean up Redis
+        if (serverAnswers != null)
             redisTemplate.delete(cacheKey);
-        } else {
-            // Redis expired or quiz was re-requested — fall back to client-sent answers
-            // This is the fallback path (e.g. Redis down or TTL expired)
-            log.warn("Server-side answers not found for user {} — falling back to client answers", userId);
-            score = calculateQuizScore(quizAnswers.getAnswers(), quizAnswers.getCorrectAnswers());
-        }
 
-        String difficulty = mapScoreToDifficulty(score, total);
+        String difficulty = mapScoreToDifficulty(score, quizAnswers.getAnswers().size());
+        log.info("User {} scored {}/{} → difficulty:{}", userId, score,
+                quizAnswers.getAnswers().size(), difficulty);
 
-        log.info("User {} scored {}/{} → difficulty: {}", userId, score, total, difficulty);
-
-        // Generate roadmap
         List<String> roadmapTopics;
         try {
             roadmapTopics = aiService.generateRoadmapTopics(
-                    onboardingRequest.getGoal(),
-                    difficulty,
+                    onboardingRequest.getGoal(), difficulty,
                     onboardingRequest.getGoalDescription());
         } catch (Exception e) {
-            log.error("Roadmap generation failed for user {}: {}", userId, e.getMessage());
-            throw AppException.badRequest(
-                    "Could not generate your learning roadmap right now. Please try again.");
+            log.error("Roadmap generation failed: {}", e.getMessage());
+            throw AppException.badRequest("Could not generate your roadmap. Please try again.");
         }
 
-        // Create Learning DNA profile
         LearningProfile profile = LearningProfile.builder()
-                .user(user)
-                .goal(onboardingRequest.getGoal())
+                .user(user).goal(onboardingRequest.getGoal())
                 .goalDescription(onboardingRequest.getGoalDescription())
                 .preferredLanguage(onboardingRequest.getPreferredLanguage())
-                .currentDifficulty(difficulty)
-                .learningStyle("PRACTICE") // default, refined over time
-                .roadmapTopics(roadmapTopics)
-                .build();
+                .currentDifficulty(difficulty).learningStyle("PRACTICE")
+                .roadmapTopics(roadmapTopics).build();
 
         profile = profileRepository.save(profile);
-        log.info("Learning profile created for user: {}", userId);
+        log.info("Profile created for user: {}", userId);
 
-        // Fire async content bootstrap
+        // NEW: initialize roadmap rows with per-topic concepts
+        final UUID finalUserId = userId;
+        try {
+            roadmapService.initializeRoadmap(finalUserId);
+            log.info("Roadmap initialized for user: {}", finalUserId);
+        } catch (Exception e) {
+            // Non-fatal — auto-initializes on first /api/roadmap call
+            log.warn("Roadmap init failed (will retry on first use): {}", e.getMessage());
+        }
+
         contentPipelineService.bootstrapTopicContent(onboardingRequest.getGoal());
-        log.info("Content pipeline triggered for goal: {}", onboardingRequest.getGoal());
 
         return OnboardingResponse.builder()
-                .profileId(profile.getId())
-                .goal(profile.getGoal())
+                .profileId(profile.getId()).goal(profile.getGoal())
                 .preferredLanguage(profile.getPreferredLanguage())
                 .currentDifficulty(profile.getCurrentDifficulty())
                 .learningStyle(profile.getLearningStyle())
                 .roadmapTopics(profile.getRoadmapTopics())
-                .message("Onboarding complete! Your learning path is ready.")
+                .message("Onboarding complete! Your personalized roadmap is ready.")
                 .build();
     }
 
@@ -181,22 +161,22 @@ public class OnboardingService {
 
     // ─── Helpers ──────────────────────────────────────────────────────────
 
-    private int calculateQuizScore(List<Integer> answers, List<Integer> correctAnswers) {
-        if (correctAnswers == null || correctAnswers.isEmpty()) return 0;
+    private int calculateScore(List<Integer> answers, List<Integer> correct) {
+        if (correct == null || correct.isEmpty())
+            return 0;
         int score = 0;
-        for (int i = 0; i < answers.size(); i++) {
-            if (i < correctAnswers.size() &&
-                answers.get(i).equals(correctAnswers.get(i))) {
+        for (int i = 0; i < answers.size() && i < correct.size(); i++)
+            if (answers.get(i).equals(correct.get(i)))
                 score++;
-            }
-        }
         return score;
     }
 
     private String mapScoreToDifficulty(int score, int total) {
         double percentage = total > 0 ? (double) score / total * 100 : 0;
-        if (percentage >= 70) return "HARD";
-        if (percentage >= 40) return "MEDIUM";
+        if (percentage >= 70)
+            return "HARD";
+        if (percentage >= 40)
+            return "MEDIUM";
         return "EASY";
     }
 

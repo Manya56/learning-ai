@@ -26,72 +26,64 @@ public class QuizService {
         private final UserRepository userRepository;
         private final AiService aiService;
         private final LearningProfileService profileService;
-
+        private final RoadmapService roadmapService;
         private final RedisTemplate<String, Object> redisTemplate;
         private final LanguageService languageService;
 
         private static final String HINT_KEY = "quiz:hints:";
         private static final int QUESTIONS_PER_SESSION = 5;
-        private static final int HISTORY_PAGE_SIZE = 10;
 
         // ─── Start a new quiz session ─────────────────────────────────────────
 
         @Transactional
-        public QuizSessionResponse startSession(UUID userId, String conceptName) {
-
+        public QuizSessionResponse startSession(UUID userId,
+                        String conceptName,
+                        String topicGoalOverride) {
                 User user = getUser(userId);
 
-                // Block if user already has an active session
-                sessionRepository.findByUserIdAndStatus(
-                                userId, QuizSession.SessionStatus.IN_PROGRESS)
+                sessionRepository.findByUserIdAndStatus(userId, QuizSession.SessionStatus.IN_PROGRESS)
                                 .ifPresent(s -> {
                                         throw AppException.conflict(
-                                                        "You have an active session. Complete it first. " +
-                                                                        "Session ID: " + s.getId());
+                                                        "Active session exists. Complete it first. ID: " + s.getId());
                                 });
 
-                // Fetch user's Learning DNA
-                LearningProfile profile = profileRepository
-                                .findByUserId(userId)
-                                .orElseThrow(() -> AppException.notFound(
-                                                "Complete onboarding before starting a quiz"));
+                LearningProfile profile = profileRepository.findByUserId(userId)
+                                .orElseThrow(() -> AppException.notFound("Complete onboarding first"));
 
                 String difficulty = profile.getCurrentDifficulty();
                 String learningStyle = profile.getLearningStyle();
 
-                log.info("Generating quiz — user:{} concept:{} difficulty:{} style:{}",
-                                userId, conceptName, difficulty, learningStyle);
+                // Resolve topicGoal: caller > profile goal
+                // This is what fixes the "Platform Basics = CS question" bug
+                String topicGoal = (topicGoalOverride != null && !topicGoalOverride.isBlank())
+                                ? topicGoalOverride
+                                : profile.getGoal();
 
-                // Generate questions — wrap in try/catch so Groq failure gives a clean error
+                log.info("Generating quiz — user:{} concept:'{}' topic:'{}' diff:{} style:{}",
+                                userId, conceptName, topicGoal, difficulty, learningStyle);
+
                 List<QuizSession.QuizQuestionData> questions;
                 try {
                         questions = aiService.generateQuizForConcept(
-                                        conceptName, difficulty, learningStyle, QUESTIONS_PER_SESSION);
+                                        conceptName, topicGoal, difficulty, learningStyle, QUESTIONS_PER_SESSION);
                 } catch (Exception e) {
-                        log.error("Quiz generation failed for concept {}: {}", conceptName, e.getMessage());
-                        throw AppException.badRequest(
-                                        "Could not generate quiz right now. Please try again in a moment.");
+                        log.error("Quiz generation failed for {}: {}", conceptName, e.getMessage());
+                        throw AppException.badRequest("Could not generate quiz. Try again in a moment.");
                 }
 
-                if (questions == null || questions.isEmpty()) {
-                        throw AppException.badRequest(
-                                        "AI returned empty quiz. Please try again.");
-                }
+                if (questions == null || questions.isEmpty())
+                        throw AppException.badRequest("AI returned empty quiz. Try again.");
 
                 QuizSession session = QuizSession.builder()
-                                .user(user)
-                                .conceptName(conceptName)
-                                .difficulty(difficulty)
-                                .learningStyle(learningStyle)
-                                .questions(questions)
-                                .status(QuizSession.SessionStatus.IN_PROGRESS)
-                                .totalQuestions(questions.size())
-                                .build();
+                                .user(user).conceptName(conceptName)
+                                .difficulty(difficulty).learningStyle(learningStyle)
+                                .questions(questions).status(QuizSession.SessionStatus.IN_PROGRESS)
+                                .totalQuestions(questions.size()).build();
 
                 session = sessionRepository.save(session);
-                log.info("Quiz session created: {}", session.getId());
+                log.info("Quiz session created: {} for concept:'{}' in topic:'{}'",
+                                session.getId(), conceptName, topicGoal);
 
-                // Return WITHOUT correct answer indices — answers stay server-side
                 return mapToSessionResponse(session, false);
         }
 
@@ -239,33 +231,31 @@ public class QuizService {
         public QuizResultResponse completeSession(UUID userId, UUID sessionId) {
 
                 QuizSession session = getActiveSession(sessionId, userId);
-
                 List<QuizAttempt> attempts = attemptRepository
                                 .findBySessionIdOrderByQuestionIndexAsc(sessionId);
 
-                int totalCorrect = (int) attempts.stream()
-                                .filter(QuizAttempt::getCorrect)
-                                .count();
+                int totalCorrect = (int) attempts.stream().filter(QuizAttempt::getCorrect).count();
+                double accuracy = attempts.isEmpty() ? 0.0
+                                : (double) totalCorrect / attempts.size() * 100;
 
                 session.setStatus(QuizSession.SessionStatus.COMPLETED);
                 session.setTotalCorrect(totalCorrect);
                 session.setCompletedAt(Instant.now());
                 sessionRepository.save(session);
 
-                // FIX: avoid divide-by-zero when user completes with 0 answered questions
-                double accuracy = attempts.isEmpty()
-                                ? 0.0
-                                : (double) totalCorrect / attempts.size() * 100;
-
-                long totalTimeMs = attempts.stream()
-                                .mapToLong(QuizAttempt::getTimeTakenMs)
-                                .sum();
-
-                // Fetch updated profile to show DNA changes
                 LearningProfile profile = profileRepository.findByUserId(userId).orElse(null);
 
-                log.info("Session completed — user:{} score:{}/{} accuracy:{}%",
-                                userId, totalCorrect, attempts.size(), Math.round(accuracy));
+                // Hook into roadmap — mark concept complete with quiz score
+                RoadmapService.ConceptCompleteResponse roadmapResult = null;
+                try {
+                        roadmapResult = roadmapService.markConceptComplete(
+                                        userId, session.getConceptName(), "QUIZ", accuracy / 100.0);
+                } catch (Exception e) {
+                        log.warn("Roadmap update after quiz failed (non-fatal): {}", e.getMessage());
+                }
+
+                log.info("Quiz complete — user:{} {}/{} ({:.0f}%)",
+                                userId, totalCorrect, attempts.size(), accuracy);
 
                 return QuizResultResponse.builder()
                                 .sessionId(sessionId)
@@ -273,13 +263,25 @@ public class QuizService {
                                 .totalQuestions(attempts.size())
                                 .totalCorrect(totalCorrect)
                                 .accuracyPercent(Math.round(accuracy * 10.0) / 10.0)
-                                .timeTakenMs(totalTimeMs)
+                                .timeTakenMs(attempts.stream().mapToLong(QuizAttempt::getTimeTakenMs).sum())
                                 .difficulty(session.getDifficulty())
                                 .updatedDifficulty(profile != null
                                                 ? profile.getCurrentDifficulty()
                                                 : session.getDifficulty())
                                 .difficultyChanged(profile != null &&
                                                 !profile.getCurrentDifficulty().equals(session.getDifficulty()))
+                                // Roadmap fields
+                                .roadmapTopicProgress(roadmapResult != null
+                                                ? roadmapResult.getTopicProgressPercent()
+                                                : 0)
+                                .roadmapTopicCompleted(roadmapResult != null
+                                                && roadmapResult.isTopicCompleted())
+                                .nextConceptToStudy(roadmapResult != null
+                                                ? roadmapResult.getNextConceptToStudy()
+                                                : null)
+                                .roadmapMessage(roadmapResult != null
+                                                ? roadmapResult.getMessage()
+                                                : null)
                                 .build();
         }
         // ─── Get session history ──────────────────────────────────────────────
