@@ -13,6 +13,8 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(
                         "http://localhost:*",     // local dev
+                            "http://localhost:5173",  // Vite dev server
+                                "http://localhost:3000",  // fallback
                         "https://*.railway.app",  // Railway production
                         "https://*.render.com",   // Render production
                         "https://*.vercel.app"    // Vercel frontend if used
