@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Map, BookOpen, Brain, User, CircleHelp, Code2, RefreshCcw, ChartNoAxesCombined } from "lucide-react";
+import { LayoutDashboard, Map, BookOpen, Brain, User, CircleHelp, Code2, RefreshCcw, ChartNoAxesCombined, Trophy } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useProfileStore } from "../../store/profileStore";
 
@@ -13,6 +13,7 @@ const items = [
   { to: "/mentor", label: "Mentor", icon: Brain },
   { to: "/revision", label: "Revision", icon: RefreshCcw },
   { to: "/analytics", label: "Analytics", icon: ChartNoAxesCombined },
+  { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
