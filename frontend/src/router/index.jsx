@@ -4,6 +4,7 @@ import AppShell from "../components/layout/AppShell";
 import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
+import VerifyOtpPage from "../pages/VerifyOtpPage";
 import OnboardingPage from "../pages/OnboardingPage";
 import DashboardPage from "../pages/DashboardPage";
 import RoadmapPage from "../pages/RoadmapPage";
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/register/verify-otp", element: <VerifyOtpPage /> },
   {
     element: <ProtectedRoute />,
     children: [

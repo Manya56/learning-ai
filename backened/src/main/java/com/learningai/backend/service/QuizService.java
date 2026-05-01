@@ -29,6 +29,7 @@ public class QuizService {
         private final RoadmapService roadmapService;
         private final RedisTemplate<String, Object> redisTemplate;
         private final LanguageService languageService;
+        private final XpService xpService;
 
         private static final String HINT_KEY = "quiz:hints:";
         private static final int QUESTIONS_PER_SESSION = 5;
@@ -147,6 +148,12 @@ public class QuizService {
                 log.info("Answer submitted — user:{} q:{} correct:{} time:{}ms",
                                 userId, questionIndex, correct, timeTakenMs);
 
+                try {
+                        xpService.awardAnswerXp(userId, correct, hintsUsed > 0);
+                } catch (Exception e) {
+                        log.warn("XP award failed: {}", e.getMessage());
+                }
+
                 // ── Translate explanation if needed ───────────────────────────────
                 String explanation = qData.getExplanation();
                 if (profile != null &&
@@ -256,6 +263,14 @@ public class QuizService {
 
                 log.info("Quiz complete — user:{} {}/{} ({:.0f}%)",
                                 userId, totalCorrect, attempts.size(), accuracy);
+
+                if (roadmapResult != null && roadmapResult.isTopicCompleted()) {
+                        try {
+                                xpService.awardTopicCompleted(userId, roadmapResult.getTopicName());
+                        } catch (Exception e) {
+                                log.warn("Topic XP award failed: {}", e.getMessage());
+                        }
+                }
 
                 return QuizResultResponse.builder()
                                 .sessionId(sessionId)
