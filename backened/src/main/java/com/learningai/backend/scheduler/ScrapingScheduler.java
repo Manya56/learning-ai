@@ -12,7 +12,18 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-
+/**
+ * ScrapingScheduler — background content refresh and embedding jobs.
+ *
+ * ORIGINAL BUG: refreshStaleContent() called findAll() which loads the ENTIRE
+ * scraped_content table into memory, then filtered in Java with .stream().filter().
+ * As content grows (thousands of rows) this will OOM the JVM.
+ *
+ * FIX: Uses findByScrapedAtBefore(threshold) — a DB-level query that only
+ * returns stale rows. No full table scan in memory.
+ *
+ * Also removed unused ContentPipelineService dependency.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
