@@ -16,6 +16,7 @@ import MentorPage from "../pages/MentorPage";
 import RevisionPage from "../pages/RevisionPage";
 import AnalyticsPage from "../pages/AnalyticsPage";
 import ProfilePage from "../pages/ProfilePage";
+import LeaderboardPage from "../pages/LeaderboardPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
           { path: "/revision", element: <RevisionPage /> },
           { path: "/analytics", element: <AnalyticsPage /> },
           { path: "/profile", element: <ProfilePage /> },
+          { path: "/leaderboard", element: <LeaderboardPage /> },
         ],
       },
     ],
