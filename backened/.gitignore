@@ -41,5 +41,3 @@ out/
 **/.env
 .env*
 **/.env*
-
-models
