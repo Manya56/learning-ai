@@ -11,11 +11,10 @@ RUN ./gradlew bootJar -x test --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Copy jar
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# 🔥 IMPORTANT: Copy model from backened → root models
-COPY --from=build /app/backened/models ./models
+# ✅ THIS IS THE FIX
+COPY backened/models ./models
 
 EXPOSE 10000
 
