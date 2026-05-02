@@ -33,7 +33,7 @@ export default function LeaderboardPage() {
           xp: u.xp || 0,
           userId: u.userId,
           isYou: u.isCurrentUser || false,
-        }));
+        })).filter(u => !u.isYou);
         const normalized = {
           leaderboard: entries,
           yourRank: data?.myEntry ? {
@@ -54,7 +54,7 @@ export default function LeaderboardPage() {
           xp: u.xp || 0,
           userId: u.userId,
           isYou: u.isCurrentUser || false,
-        }));
+        })).filter(u => !u.isYou);
         const normalized = {
           leaderboard: entries,
           yourRank: data?.myEntry ? {
@@ -160,7 +160,7 @@ export default function LeaderboardPage() {
                 {entry.isYou && <motion.div className="text-yellow-400" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 1, repeat: Infinity }}>⭐ You</motion.div>}
               </motion.div>
             ))}
-            {currentData.yourRank && !currentData.leaderboard?.some(e => e.isYou) && (
+            {currentData.yourRank && (
               <motion.div
                 className="mt-4 rounded-lg bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 p-3"
                 initial={{ opacity: 0, scale: 0.8 }}

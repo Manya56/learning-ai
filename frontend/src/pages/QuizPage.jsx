@@ -24,6 +24,7 @@ export default function QuizPage() {
   const [pendingHref, setPendingHref] = useState("");
   const [questionStartedAt, setQuestionStartedAt] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const setActiveQuizSession = useUiStore((s) => s.setActiveQuizSession);
   const clearQuizSession = useUiStore((s) => s.clearQuizSession);
   const activeQuizSessionId = useUiStore((s) => s.activeQuizSessionId);
@@ -96,6 +97,7 @@ export default function QuizPage() {
   };
 
   const submit = async () => {
+    setSubmitting(true);
     try {
       const answer = await submitQuizAnswerApi(session.sessionId, {
         questionIndex: index,
@@ -106,6 +108,8 @@ export default function QuizPage() {
       setError("");
     } catch (err) {
       setError(err?.response?.data?.message || "Could not submit answer. Try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -242,7 +246,9 @@ export default function QuizPage() {
         ))}
       </div>
       {!revealed ? (
-        <Button className="mt-3" disabled={selected == null} onClick={submit}>Submit Answer</Button>
+        <Button className="mt-3" disabled={selected == null || submitting} onClick={submit}>
+          {submitting ? "Submitting..." : "Submit Answer"}
+        </Button>
       ) : (
         <div className="mt-3 space-y-2">
           <p className="text-sm">{revealed.explanation}</p>
