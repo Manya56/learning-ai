@@ -58,11 +58,11 @@ dependencies {
     implementation 'com.bucket4j:bucket4j-redis:8.10.1'
 
     // Add DJL (Deep Java Library)
-    implementation platform('ai.djl:bom:0.27.0')
-    implementation 'ai.djl:api:0.27.0'
-    implementation 'ai.djl.huggingface:tokenizers:0.27.0'
-    implementation 'ai.djl.pytorch:pytorch-engine:0.27.0'
-    implementation 'ai.djl.pytorch:pytorch-model-zoo:0.27.0'
+    // implementation platform('ai.djl:bom:0.27.0')
+    // implementation 'ai.djl:api:0.27.0'
+    // implementation 'ai.djl.huggingface:tokenizers:0.27.0'
+    // implementation 'ai.djl.pytorch:pytorch-engine:0.27.0'
+    // implementation 'ai.djl.pytorch:pytorch-model-zoo:0.27.0'
 
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
