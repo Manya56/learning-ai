@@ -2,7 +2,7 @@
 FROM gradle:8-jdk21 AS build
 WORKDIR /app
 COPY . .
-RUN gradle bootJar --no-daemon
+RUN ./gradlew bootJar -x test --no-daemon --stacktrace
 
 # Stage 2 — Run
 FROM eclipse-temurin:21-jre-alpine
