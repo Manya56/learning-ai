@@ -17,6 +17,20 @@ services:
       timeout: 5s
       retries: 5
 
+  embedding:
+    build: ../embedding-service
+    container_name: learning_embedding
+    ports:
+      - "8002:10000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: learning_redis
