@@ -2,6 +2,7 @@ package com.learningai.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learningai.backend.config.GroqKeyPool;
 import com.learningai.backend.dto.response.EvaluationResult;
 import com.learningai.backend.dto.response.ProblemResponse;
 import com.learningai.backend.dto.response.QuizQuestionResponse;
@@ -23,488 +24,202 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AiService {
 
-    private final WebClient groqWebClient;
+    private final WebClient    groqWebClient;
     private final ObjectMapper objectMapper;
+    private final GroqKeyPool  keyPool;
 
     @Value("${groq.model}")
     private String model;
 
-    private static final int MAX_RETRIES = 3;
-    private static final long RETRY_BACKOFF_MS = 1_000;
-    private static final int TIMEOUT_SECONDS = 30;
-
-    // ─── Core call ────────────────────────────────────────────────────────
+    private static final int  MAX_RETRIES      = 3;
+    private static final long RETRY_BACKOFF_MS = 500;
+    private static final int  TIMEOUT_SECONDS  = 30;
 
     public String call(String systemPrompt, String userMessage) {
         return callWithRetry(systemPrompt, userMessage, 2_000, 0.7);
     }
 
-    public String callWithHistory(String systemPrompt,
-            List<Map<String, Object>> messages) {
+    public String callWithHistory(String systemPrompt, List<Map<String, Object>> messages) {
         return callHistoryWithRetry(systemPrompt, messages, 2_000, 0.8);
     }
 
-    // ─── Internal retry wrappers ──────────────────────────────────────────
-
-    private String callWithRetry(String systemPrompt, String userMessage,
-            int maxTokens, double temperature) {
-
-        Map<String, Object> body = Map.of(
-                "model", model, "max_tokens", maxTokens,
-                "temperature", temperature,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userMessage)));
-
-        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    private String callWithRetry(String systemPrompt, String userMessage, int maxTokens, double temperature) {
+        int attempts = Math.max(MAX_RETRIES, keyPool.poolSize());
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            String currentKey = keyPool.nextKey();
             try {
+                Map<String, Object> body = Map.of("model", model, "max_tokens", maxTokens,
+                        "temperature", temperature, "messages", List.of(
+                                Map.of("role", "system", "content", systemPrompt),
+                                Map.of("role", "user", "content", userMessage)));
                 JsonNode response = groqWebClient.post()
-                        .uri("/openai/v1/chat/completions").bodyValue(body)
-                        .retrieve().bodyToMono(JsonNode.class)
+                        .uri("/openai/v1/chat/completions")
+                        .header("Authorization", "Bearer " + currentKey)
+                        .bodyValue(body).retrieve().bodyToMono(JsonNode.class)
                         .timeout(Duration.ofSeconds(TIMEOUT_SECONDS)).block();
                 return extractContent(response);
             } catch (WebClientResponseException.TooManyRequests e) {
-                log.warn("Groq rate limit (attempt {}/{})", attempt, MAX_RETRIES);
-                sleep(RETRY_BACKOFF_MS * attempt);
+                keyPool.markRateLimited(currentKey);
+                log.warn("429 attempt {}/{} rotating key", attempt, attempts);
             } catch (WebClientResponseException e) {
-                throw new RuntimeException("Groq API error: " + e.getMessage());
+                keyPool.markError(currentKey, e.getStatusCode().value());
+                if (attempt == attempts) throw new RuntimeException("Groq error: " + e.getMessage());
+                sleep(RETRY_BACKOFF_MS);
             } catch (Exception e) {
-                if (attempt == MAX_RETRIES)
-                    throw new RuntimeException("Groq unavailable after retries: " + e.getMessage());
-                sleep(RETRY_BACKOFF_MS * attempt);
+                if (attempt == attempts) throw new RuntimeException("Groq unavailable: " + e.getMessage());
+                sleep(RETRY_BACKOFF_MS);
             }
         }
-        throw new RuntimeException("Groq failed after " + MAX_RETRIES + " attempts");
+        throw new RuntimeException("All Groq keys exhausted");
     }
 
-    private String callHistoryWithRetry(String systemPrompt,
-            List<Map<String, Object>> messages, int maxTokens, double temperature) {
-
+    private String callHistoryWithRetry(String systemPrompt, List<Map<String, Object>> messages, int maxTokens, double temperature) {
         List<Map<String, Object>> full = buildMessagesWithSystem(systemPrompt, messages);
-        Map<String, Object> body = Map.of("model", model, "max_tokens", maxTokens,
-                "temperature", temperature, "messages", full);
-
-        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        int attempts = Math.max(MAX_RETRIES, keyPool.poolSize());
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            String currentKey = keyPool.nextKey();
             try {
+                Map<String, Object> body = Map.of("model", model, "max_tokens", maxTokens,
+                        "temperature", temperature, "messages", full);
                 JsonNode response = groqWebClient.post()
-                        .uri("/openai/v1/chat/completions").bodyValue(body)
-                        .retrieve().bodyToMono(JsonNode.class)
+                        .uri("/openai/v1/chat/completions")
+                        .header("Authorization", "Bearer " + currentKey)
+                        .bodyValue(body).retrieve().bodyToMono(JsonNode.class)
                         .timeout(Duration.ofSeconds(TIMEOUT_SECONDS)).block();
                 return extractContent(response);
             } catch (WebClientResponseException.TooManyRequests e) {
-                sleep(RETRY_BACKOFF_MS * attempt);
+                keyPool.markRateLimited(currentKey);
             } catch (WebClientResponseException e) {
-                throw new RuntimeException("Groq API error: " + e.getMessage());
+                if (attempt == attempts) throw new RuntimeException("Groq error: " + e.getMessage());
+                sleep(RETRY_BACKOFF_MS);
             } catch (Exception e) {
-                if (attempt == MAX_RETRIES)
-                    throw new RuntimeException("Groq unavailable: " + e.getMessage());
-                sleep(RETRY_BACKOFF_MS * attempt);
+                if (attempt == attempts) throw new RuntimeException("Groq unavailable: " + e.getMessage());
+                sleep(RETRY_BACKOFF_MS);
             }
         }
-        throw new RuntimeException("Groq history call failed");
+        throw new RuntimeException("All Groq keys exhausted on history call");
     }
 
     private String extractContent(JsonNode response) {
-        if (response == null)
-            throw new RuntimeException("Groq returned null");
+        if (response == null) throw new RuntimeException("Groq returned null");
         JsonNode choices = response.path("choices");
-        if (choices.isEmpty())
-            throw new RuntimeException("Groq returned empty choices: " + response);
+        if (choices.isEmpty()) throw new RuntimeException("Groq empty choices: " + response);
         String content = choices.get(0).path("message").path("content").asText();
-        if (content == null || content.isBlank())
-            throw new RuntimeException("Groq returned empty content");
+        if (content == null || content.isBlank()) throw new RuntimeException("Groq empty content");
         return content;
     }
 
-    // ─── Knowledge quiz ───────────────────────────────────────────────────
-
     public List<QuizQuestionResponse> generateKnowledgeQuiz(String goal, int priorLevel) {
-        String systemPrompt = """
-                You are an expert educator. Generate exactly 5 MCQ questions
-                to assess a student's knowledge on the given topic.
-                Works for ANY domain: tech, finance, art, music, science, etc.
-
-                ACCURACY: Verify each correct answer before including it.
-                Only include questions you are 100%% certain about.
-
-                Respond ONLY with valid JSON. No markdown.
-                {
-                  "questions": [
-                    {
-                      "questionNumber": 1,
-                      "question": "...",
-                      "options": ["A","B","C","D"],
-                      "correctAnswerIndex": 0,
-                      "explanation": "..."
-                    }
-                  ]
-                }
-                """;
-        return parseQuizResponse(callWithRetry(systemPrompt,
-                "Topic: %s. Student level: %d/3.".formatted(goal, priorLevel), 2_000, 0.3));
+        String sp = "You are an expert educator. Generate exactly 5 MCQ questions for the topic.\nWorks for ANY domain.\nACCURACY: verify each answer.\nRespond ONLY with valid JSON:\n{\"questions\":[{\"questionNumber\":1,\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"correctAnswerIndex\":0,\"explanation\":\"...\"}]}";
+        return parseQuizResponse(callWithRetry(sp, "Topic: %s. Level: %d/3.".formatted(goal, priorLevel), 2_000, 0.3));
     }
-
-    // ─── Roadmap topics ───────────────────────────────────────────────────
 
     public List<String> generateRoadmapTopics(String goal, String difficulty, String desc) {
-        String systemPrompt = """
-                You are a curriculum designer. Generate 10 ordered learning topics
-                for the given goal. Works for ANY domain.
-                Respond ONLY with valid JSON: { "topics": ["Topic 1", "Topic 2"] }
-                """;
-        return parseTopicsResponse(callWithRetry(systemPrompt,
-                "Goal: %s. Description: %s. Difficulty: %s.".formatted(goal, desc, difficulty),
-                1_000, 0.7));
+        String sp = "You are a curriculum designer. Generate 10 ordered topics for ANY domain.\nRespond ONLY with valid JSON: {\"topics\":[\"Topic 1\",\"Topic 2\"]}";
+        return parseTopicsResponse(callWithRetry(sp, "Goal: %s. Desc: %s. Difficulty: %s.".formatted(goal, desc, difficulty), 1_000, 0.7));
     }
 
-    // ─── Quiz for a concept ───────────────────────────────────────────────
-    // FIX Issue 5: temperature lowered to 0.3 for factual accuracy
-    // Added explicit "verify before answering" instruction
-
-    public List<QuizSession.QuizQuestionData> generateQuizForConcept(
-            String conceptName,
-            String topicGoal, // NEW — the parent domain/goal
-            String difficulty,
-            String learningStyle,
-            int count) {
-
-        String styleInstruction = switch (learningStyle) {
-            case "PRACTICE" -> "Focus on application. Be concise.";
-            case "READING" -> "Test conceptual understanding with detailed context.";
-            case "VISUAL" -> "Use scenario-based questions with step-by-step examples.";
-            default -> "Mix conceptual and application questions.";
+    public List<QuizSession.QuizQuestionData> generateQuizForConcept(String conceptName, String topicGoal, String difficulty, String learningStyle, int count) {
+        String domain = (topicGoal != null && !topicGoal.isBlank()) ? topicGoal : "the given subject";
+        String style = switch (learningStyle) {
+            case "PRACTICE" -> "Focus on application.";
+            case "READING"  -> "Test conceptual understanding.";
+            case "VISUAL"   -> "Use scenario-based questions.";
+            default         -> "Mix conceptual and application.";
         };
-
-        // KEY FIX: topicGoal is injected into the system prompt so the AI
-        // knows which domain it is working in before seeing the concept name.
-        String domainContext = (topicGoal != null && !topicGoal.isBlank())
-                ? topicGoal
-                : "the given subject";
-
-        String systemPrompt = """
-                You are an expert educator specializing in: %s
-
-                Your job is to generate quiz questions about a SPECIFIC CONCEPT
-                that is part of this domain. All questions must be firmly grounded
-                in the domain of "%s" — not any other field.
-
-                ACCURACY IS CRITICAL:
-                - Verify each correct answer is factually accurate within the domain of "%s"
-                - If unsure about a question's answer, skip it and write another
-                - The correctAnswerIndex MUST point to the TRULY correct option
-                - Wrong options must be clearly incorrect — no ambiguous questions
-
-                Generate exactly %d MCQ questions.
-                Difficulty: %s
-                Style guide: %s
-
-                Respond ONLY with valid JSON. No markdown, no extra text.
-                {
-                  "questions": [
-                    {
-                      "questionNumber": 1,
-                      "question": "...",
-                      "options": ["A","B","C","D"],
-                      "correctAnswerIndex": 0,
-                      "explanation": "clear factual explanation within the %s domain",
-                      "hints": ["hint1","hint2","hint3"]
-                    }
-                  ]
-                }
-                """.formatted(
-                domainContext, domainContext, domainContext,
-                count, difficulty, styleInstruction, domainContext);
-
-        // User message also includes topicGoal for extra clarity
-        String userMessage = "Domain: %s\nConcept: %s (a sub-topic within %s)\nDifficulty: %s\n\n"
-                .formatted(domainContext, conceptName, domainContext, difficulty) +
-                "Generate %d quiz questions about '%s' specifically in the context of %s."
-                        .formatted(count, conceptName, domainContext);
-
-        // Low temperature = factual accuracy
-        String raw = callWithRetry(systemPrompt, userMessage, 3_000, 0.3);
-        return parseConceptQuizResponse(raw);
+        String sp = """
+You are an expert in: %s. Generate quiz questions about a concept WITHIN this domain.
+ACCURACY: verify each answer. Only include questions you are 100%% certain about.
+Generate exactly %d questions. Difficulty: %s. Style: %s
+Respond ONLY with valid JSON:
+{"questions":[{"questionNumber":1,"question":"...","options":["A","B","C","D"],"correctAnswerIndex":0,"explanation":"...","hints":["h1","h2","h3"]}]}
+""".formatted(domain, count, difficulty, style);
+        String um = "Domain: %s\nConcept: %s\nDifficulty: %s\nGenerate %d questions about '%s' in context of %s.".formatted(domain, conceptName, difficulty, count, conceptName, domain);
+        return parseConceptQuizResponse(callWithRetry(sp, um, 3_000, 0.3));
     }
-
-    // ─── Hint generation ─────────────────────────────────────────────────
 
     public String generateHint(String question, String conceptName, int hintNumber) {
-        String systemPrompt = """
-                Give hint #%d. Hint 1=nudge, Hint 2=approach, Hint 3=near-answer.
-                Under 2 sentences. Only hint text, no labels.
-                """.formatted(hintNumber);
-        return callWithRetry(systemPrompt,
-                "Q: " + question + "\nConcept: " + conceptName, 300, 0.6).trim();
+        String sp = "Give hint #%d. 1=nudge, 2=approach, 3=near-answer. Under 2 sentences. Only hint text.".formatted(hintNumber);
+        return callWithRetry(sp, "Q: " + question + "\nConcept: " + conceptName, 300, 0.6).trim();
     }
 
-    // ─── Generate practice problem ────────────────────────────────────────
-    // FIX Issue 2: Finance/math topics now get CALCULATION type, not CODING
-    // Learning style PRACTICE no longer forces coding problems
-
-    public ProblemResponse generateProblem(String conceptName, String topicGoal,
-            String difficulty, String learningStyle) {
-
-        // FIX: problem type is based on TOPIC, not learning style
+    public ProblemResponse generateProblem(String conceptName, String topicGoal, String difficulty, String learningStyle) {
         String problemType = inferProblemType(topicGoal, conceptName);
-
         String styleGuide = switch (learningStyle) {
-            case "PRACTICE" -> "Direct hands-on problem. Minimal explanation.";
-            case "READING" -> "Include context before the problem.";
-            case "VISUAL" -> "Use a real-world scenario.";
-            default -> "Clear, direct problem statement.";
+            case "PRACTICE" -> "Direct hands-on."; case "READING" -> "Include context."; case "VISUAL" -> "Use real-world scenario."; default -> "Clear, direct.";
         };
-
-        String typeGuide = switch (problemType) {
-            case "CODING" -> """
-                    - problem_statement: description of the coding problem
-                    - starter_code: code skeleton (use \\n for newlines)
-                    - test_cases: [{input, expected_output}] (3 cases)
-                    - constraints: time/space complexity hints
-                    """;
-            case "CALCULATION", "MATH" -> """
-                    - problem_statement: the calculation or math problem
-                    - starter_code: formula template with blanks (use \\n for newlines)
-                    - test_cases: [{input, expected_output}] (2 cases)
-                    - constraints: which formula or method to use
-                    """;
-            default -> """
-                    - problem_statement: a question or scenario to answer
-                    - starter_code: response outline (use \\n for newlines)
-                    - test_cases: [{criteria, expected_quality}] (2 items)
-                    - constraints: key points that must be covered
-                    """;
-        };
-
-        String systemPrompt = """
-                You are an educator. Generate ONE practice problem for the given concept.
-
-                Style: %s
-                Format: %s
-                Difficulty: %s
-                Problem type: %s
-
-                STRICT JSON RULES:
-                - Return ONLY valid JSON, NO markdown
-                - ALL values must be single-line strings
-                - Use \\n for line breaks inside strings
-                - No raw newlines inside string values
-                - Parsable by standard JSON parser
-
-                {
-                  "problem_statement": "...",
-                  "problem_type": "%s",
-                  "language": "text",
-                  "starter_code": "...",
-                  "test_cases": [{"input":"...","expected_output":"..."}],
-                  "constraints": "...",
-                  "hints": ["hint1","hint2","hint3"]
-                }
-                """.formatted(styleGuide, typeGuide, difficulty, problemType, problemType);
-
-        String raw = callWithRetry(systemPrompt,
-                "Topic: %s. Concept: %s. Difficulty: %s.".formatted(topicGoal, conceptName, difficulty),
-                2_000, 0.7);
-        return parseProblemResponse(raw, conceptName, difficulty, problemType);
+        String sp = "You are an educator in: %s. Generate ONE practice problem within \"%s\".\nStyle: %s  Type: %s  Difficulty: %s\nSTRICT JSON, no markdown, all values single-line:\n{\"problem_statement\":\"...\",\"problem_type\":\"%s\",\"language\":\"text\",\"starter_code\":\"...\",\"test_cases\":[{\"input\":\"...\",\"expected_output\":\"...\"}],\"constraints\":\"...\",\"hints\":[\"h1\",\"h2\",\"h3\"]}".formatted(topicGoal, topicGoal, styleGuide, problemType, difficulty, problemType);
+        return parseProblemResponse(callWithRetry(sp, "Domain: %s. Concept: %s. Difficulty: %s.".formatted(topicGoal, conceptName, difficulty), 2_000, 0.7), conceptName, difficulty, problemType);
     }
 
-    // ─── Evaluate submission ──────────────────────────────────────────────
-    // FIX Issue 3: sanitizeForPrompt() prevents CTRL-CHAR JSON parse error
-    // Multiline user code with raw \n was breaking Jackson on the server
-
-    public EvaluationResult evaluateSubmission(String problemStatement,
-            String userSubmission, String problemType, String language, String conceptName) {
-
-        // FIX: sanitize both inputs — removes raw control characters from multiline
-        // code
-        String safeSub = sanitizeForPrompt(userSubmission);
-        String safeProblem = sanitizeForPrompt(problemStatement);
-
-        String guide = switch (problemType) {
-            case "CODING" -> "Correctness, time complexity, edge cases, code quality.";
-            case "CALCULATION", "MATH" -> "Correct formula, steps shown, final answer correct, units.";
-            default -> "Addresses core question, factual accuracy, clarity, depth.";
-        };
-
-        String systemPrompt = """
-                You are an expert evaluator. Evaluate the student's submission.
-                Criteria: %s
-                Score 0-10 (10=perfect, 6-7=good, below 6=needs work).
-                Respond ONLY with valid JSON. No markdown.
-                {
-                  "score": 7,
-                  "passed": true,
-                  "strengths": "...",
-                  "issues": "...",
-                  "suggestions": "...",
-                  "corrected_solution": "...",
-                  "line_feedback": [{"line":"...","comment":"..."}]
-                }
-                """.formatted(guide);
-
-        String userMessage = "Problem: %s\n\nStudent's %s submission:\n%s\n\nConcept: %s"
-                .formatted(safeProblem, language, safeSub, conceptName);
-
-        return parseEvaluationResult(callWithRetry(systemPrompt, userMessage, 2_000, 0.5));
+    public EvaluationResult evaluateSubmission(String problemStatement, String userSubmission, String problemType, String language, String conceptName) {
+        String guide = switch (problemType) { case "CODING" -> "Correctness, complexity, edge cases, quality."; case "CALCULATION","MATH" -> "Formula, steps, answer, units."; default -> "Addresses question, accuracy, clarity, depth."; };
+        String sp = "You are an expert evaluator. Criteria: %s. Score 0-10.\nRespond ONLY valid JSON:\n{\"score\":7,\"passed\":true,\"strengths\":\"...\",\"issues\":\"...\",\"suggestions\":\"...\",\"corrected_solution\":\"...\",\"line_feedback\":[{\"line\":\"...\",\"comment\":\"...\"}]}".formatted(guide);
+        return parseEvaluationResult(callWithRetry(sp, "Problem: %s\n\nStudent %s submission:\n%s\n\nConcept: %s".formatted(sanitizeForPrompt(problemStatement), language, sanitizeForPrompt(userSubmission), conceptName), 2_000, 0.5));
     }
 
-    // ─── FIX Issue 2: proper problem type inference ───────────────────────
-    // Finance, Accounting, Investment → CALCULATION (not CODING or WRITTEN)
-    // Only pure software engineering topics → CODING
+    public String generateMotivationalMessage(String goal, double accuracy, int streak, List<String> weakConcepts) {
+        String sp = "You are an encouraging learning coach. Write ONE short motivational message (max 120 chars) for a push notification. Be specific. Only the message text.";
+        String um = "Goal: %s\nAccuracy: %.0f%%\nStreak: %d days\nWeak areas: %s\nWrite 1-sentence motivation.".formatted(goal, accuracy * 100, streak, weakConcepts.isEmpty() ? "none" : String.join(", ", weakConcepts));
+        try { return callWithRetry(sp, um, 150, 0.9).trim(); }
+        catch (Exception e) { return "Keep going! Every concept gets you closer to your goal. 🚀"; }
+    }
 
     private String inferProblemType(String topicGoal, String conceptName) {
-        String combined = ((topicGoal != null ? topicGoal : "") + " " +
-                (conceptName != null ? conceptName : "")).toLowerCase();
-
-        boolean isCoding = combined.matches(".*(dsa|algorithm|data structure|" +
-                "programming|system design|spring|kotlin|javascript|typescript|" +
-                "backend|frontend|leetcode|coding|software).*");
-
-        boolean isCalc = combined.matches(".*(math|calcul|statistic|physics|" +
-                "linear algebra|probabilit|interest|financ|account|invest|" +
-                "quantitat|formula|ratio|return|yield|budget|econom|" +
-                "chemist|biology|engineer|circuit).*");
-
-        if (isCoding)
-            return "CODING";
-        if (isCalc)
-            return "CALCULATION";
+        String c = ((topicGoal != null ? topicGoal : "") + " " + (conceptName != null ? conceptName : "")).toLowerCase();
+        if (c.matches(".*(dsa|algorithm|data structure|programming|system design|spring|kotlin|javascript|typescript|backend|frontend|leetcode|coding|software).*")) return "CODING";
+        if (c.matches(".*(math|calcul|statistic|physics|linear algebra|probabilit|interest|financ|account|invest|quantitat|formula|ratio|return|yield|budget|econom|chemist|biology|engineer|circuit).*")) return "CALCULATION";
         return "WRITTEN";
     }
 
-    // ─── FIX Issue 3: sanitize user input for embedding in prompts ────────
-    // Prevents CTRL-CHAR (code 10 = \n) error in Jackson JSON parsing
-
     private String sanitizeForPrompt(String input) {
-        if (input == null)
-            return "";
-        return input
-                .replace("\\", "\\\\") // escape backslashes first
-                .replace("\r\n", " ") // Windows newlines → space
-                .replace("\n", " ") // Unix newlines → space
-                .replace("\r", " ") // old Mac newlines → space
-                .replace("\t", "  ") // tabs → spaces
-                .replace("\"", "'") // double quotes → single (safe in JSON string)
-                .replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]", ""); // other control chars
+        if (input == null) return "";
+        return input.replace("\\","\\\\").replace("\r\n"," ").replace("\n"," ").replace("\r"," ").replace("\t","  ").replace("\"","'").replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]","");
     }
-
-    // ─── Parse helpers ────────────────────────────────────────────────────
 
     private List<QuizQuestionResponse> parseQuizResponse(String raw) {
         try {
-            JsonNode root = objectMapper.readTree(cleanJson(raw));
-            List<QuizQuestionResponse> q = new ArrayList<>();
-            for (JsonNode n : root.path("questions")) {
-                List<String> opts = new ArrayList<>();
-                n.path("options").forEach(o -> opts.add(o.asText()));
-                q.add(QuizQuestionResponse.builder()
-                        .questionNumber(n.path("questionNumber").asInt())
-                        .question(n.path("question").asText())
-                        .options(opts)
-                        .correctAnswerIndex(n.path("correctAnswerIndex").asInt())
-                        .explanation(n.path("explanation").asText())
-                        .build());
-            }
+            JsonNode root = objectMapper.readTree(cleanJson(raw)); List<QuizQuestionResponse> q = new ArrayList<>();
+            for (JsonNode n : root.path("questions")) { List<String> opts = new ArrayList<>(); n.path("options").forEach(o -> opts.add(o.asText())); q.add(QuizQuestionResponse.builder().questionNumber(n.path("questionNumber").asInt()).question(n.path("question").asText()).options(opts).correctAnswerIndex(n.path("correctAnswerIndex").asInt()).explanation(n.path("explanation").asText()).build()); }
             return q;
-        } catch (Exception e) {
-            log.error("Failed to parse quiz JSON: {}", e.getMessage());
-            throw new RuntimeException("Failed to parse quiz response");
-        }
+        } catch (Exception e) { throw new RuntimeException("Failed to parse quiz: " + e.getMessage()); }
     }
 
     private List<String> parseTopicsResponse(String raw) {
-        try {
-            JsonNode root = objectMapper.readTree(cleanJson(raw));
-            List<String> topics = new ArrayList<>();
-            root.path("topics").forEach(t -> topics.add(t.asText()));
-            return topics;
-        } catch (Exception e) {
-            log.error("Failed to parse topics JSON: {}", e.getMessage());
-            throw new RuntimeException("Failed to parse roadmap response");
-        }
+        try { JsonNode root = objectMapper.readTree(cleanJson(raw)); List<String> t = new ArrayList<>(); root.path("topics").forEach(n -> t.add(n.asText())); return t; }
+        catch (Exception e) { throw new RuntimeException("Failed to parse topics: " + e.getMessage()); }
     }
 
     private List<QuizSession.QuizQuestionData> parseConceptQuizResponse(String raw) {
         try {
-            JsonNode root = objectMapper.readTree(cleanJson(raw));
-            List<QuizSession.QuizQuestionData> qs = new ArrayList<>();
-            for (JsonNode q : root.path("questions")) {
-                List<String> opts = new ArrayList<>();
-                q.path("options").forEach(o -> opts.add(o.asText()));
-                List<String> hints = new ArrayList<>();
-                q.path("hints").forEach(h -> hints.add(h.asText()));
-                qs.add(QuizSession.QuizQuestionData.builder()
-                        .questionNumber(q.path("questionNumber").asInt())
-                        .question(q.path("question").asText())
-                        .options(opts).correctAnswerIndex(q.path("correctAnswerIndex").asInt())
-                        .explanation(q.path("explanation").asText()).hints(hints).build());
-            }
+            JsonNode root = objectMapper.readTree(cleanJson(raw)); List<QuizSession.QuizQuestionData> qs = new ArrayList<>();
+            for (JsonNode q : root.path("questions")) { List<String> opts = new ArrayList<>(); q.path("options").forEach(o -> opts.add(o.asText())); List<String> hints = new ArrayList<>(); q.path("hints").forEach(h -> hints.add(h.asText())); qs.add(QuizSession.QuizQuestionData.builder().questionNumber(q.path("questionNumber").asInt()).question(q.path("question").asText()).options(opts).correctAnswerIndex(q.path("correctAnswerIndex").asInt()).explanation(q.path("explanation").asText()).hints(hints).build()); }
             return qs;
-        } catch (Exception e) {
-            log.error("Failed to parse concept quiz JSON: {}", e.getMessage());
-            throw new RuntimeException("Failed to parse quiz response");
-        }
+        } catch (Exception e) { throw new RuntimeException("Failed to parse concept quiz: " + e.getMessage()); }
     }
 
-    private ProblemResponse parseProblemResponse(String raw, String conceptName,
-            String difficulty, String problemType) {
+    private ProblemResponse parseProblemResponse(String raw, String conceptName, String difficulty, String problemType) {
         try {
-            JsonNode root = objectMapper.readTree(cleanJson(raw));
-            List<ProblemResponse.TestCase> tc = new ArrayList<>();
-            for (JsonNode t : root.path("test_cases"))
-                tc.add(ProblemResponse.TestCase.builder()
-                        .input(t.path("input").asText())
-                        .expectedOutput(t.path("expected_output").asText(t.path("expected_quality").asText()))
-                        .build());
-            List<String> hints = new ArrayList<>();
-            root.path("hints").forEach(h -> hints.add(h.asText()));
-            return ProblemResponse.builder().conceptName(conceptName).difficulty(difficulty)
-                    .problemType(root.path("problem_type").asText(problemType))
-                    .language(root.path("language").asText("text"))
-                    .problemStatement(root.path("problem_statement").asText())
-                    .starterCode(root.path("starter_code").asText())
-                    .testCases(tc).constraints(root.path("constraints").asText()).hints(hints).build();
-        } catch (Exception e) {
-            log.error("Failed to parse problem: {}", e.getMessage());
-            throw new RuntimeException("Failed to parse problem from AI");
-        }
+            JsonNode root = objectMapper.readTree(cleanJson(raw)); List<ProblemResponse.TestCase> tc = new ArrayList<>();
+            for (JsonNode t : root.path("test_cases")) tc.add(ProblemResponse.TestCase.builder().input(t.path("input").asText()).expectedOutput(t.path("expected_output").asText(t.path("expected_quality").asText())).build());
+            List<String> hints = new ArrayList<>(); root.path("hints").forEach(h -> hints.add(h.asText()));
+            return ProblemResponse.builder().conceptName(conceptName).difficulty(difficulty).problemType(root.path("problem_type").asText(problemType)).language(root.path("language").asText("text")).problemStatement(root.path("problem_statement").asText()).starterCode(root.path("starter_code").asText()).testCases(tc).constraints(root.path("constraints").asText()).hints(hints).build();
+        } catch (Exception e) { throw new RuntimeException("Failed to parse problem: " + e.getMessage()); }
     }
 
     private EvaluationResult parseEvaluationResult(String raw) {
         try {
-            JsonNode root = objectMapper.readTree(cleanJson(raw));
-            List<EvaluationResult.LineFeedback> lf = new ArrayList<>();
-            for (JsonNode l : root.path("line_feedback"))
-                lf.add(EvaluationResult.LineFeedback.builder()
-                        .line(l.path("line").asText()).comment(l.path("comment").asText()).build());
-            return EvaluationResult.builder().score(root.path("score").asInt())
-                    .passed(root.path("passed").asBoolean())
-                    .strengths(root.path("strengths").asText()).issues(root.path("issues").asText())
-                    .suggestions(root.path("suggestions").asText())
-                    .correctedSolution(root.path("corrected_solution").asText())
-                    .lineFeedback(lf).build();
-        } catch (Exception e) {
-            log.error("Failed to parse evaluation: {}", e.getMessage());
-            throw new RuntimeException("Failed to parse evaluation from AI");
-        }
+            JsonNode root = objectMapper.readTree(cleanJson(raw)); List<EvaluationResult.LineFeedback> lf = new ArrayList<>();
+            for (JsonNode l : root.path("line_feedback")) lf.add(EvaluationResult.LineFeedback.builder().line(l.path("line").asText()).comment(l.path("comment").asText()).build());
+            return EvaluationResult.builder().score(root.path("score").asInt()).passed(root.path("passed").asBoolean()).strengths(root.path("strengths").asText()).issues(root.path("issues").asText()).suggestions(root.path("suggestions").asText()).correctedSolution(root.path("corrected_solution").asText()).lineFeedback(lf).build();
+        } catch (Exception e) { throw new RuntimeException("Failed to parse evaluation: " + e.getMessage()); }
     }
 
-    private String cleanJson(String raw) {
-        return raw.replaceAll("(?s)```json\\s*", "").replaceAll("(?s)```\\s*", "").trim();
+    private String cleanJson(String raw) { return raw.replaceAll("(?s)```json\\s*","").replaceAll("(?s)```\\s*","").trim(); }
+
+    private List<Map<String, Object>> buildMessagesWithSystem(String sp, List<Map<String, Object>> history) {
+        List<Map<String, Object>> all = new ArrayList<>(); all.add(Map.of("role","system","content",sp)); all.addAll(history); return all;
     }
 
-    private List<Map<String, Object>> buildMessagesWithSystem(
-            String systemPrompt, List<Map<String, Object>> history) {
-        List<Map<String, Object>> all = new ArrayList<>();
-        all.add(Map.of("role", "system", "content", systemPrompt));
-        all.addAll(history);
-        return all;
-    }
-
-    private void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
+    private void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
 }

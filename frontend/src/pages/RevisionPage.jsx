@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { completeRevisionApi, getRevisionAllApi, getRevisionDueApi } from "../api/revision";
 import Card from "../components/ui/Card";
@@ -8,13 +9,14 @@ export default function RevisionPage() {
   const [stats, setStats] = useState(null);
   const [allCards, setAllCards] = useState([]);
   const [tab, setTab] = useState("due");
+
   useEffect(() => {
     getRevisionDueApi()
       .then((data) => {
         setStats(data);
       })
       .catch(() => setStats(null));
-    
+
     getRevisionAllApi()
       .then((d) => {
         const data = Array.isArray(d) ? d : d?.cards || d?.revisionCards || [];
@@ -22,6 +24,23 @@ export default function RevisionPage() {
       })
       .catch(() => setAllCards([]));
   }, []);
+
+  const buildQuery = (conceptName, topicGoal) => {
+    const params = new URLSearchParams();
+    if (conceptName) params.set("concept", conceptName);
+    if (topicGoal) params.set("topic", topicGoal);
+    return params.toString();
+  };
+
+  const handleComplete = async (card, quality) => {
+    await completeRevisionApi({ conceptName: card.conceptName, quality });
+    setStats({
+      ...stats,
+      dueCards: stats.dueCards.filter((c) => c.conceptName !== card.conceptName),
+      dueToday: Math.max(0, (stats.dueToday || 1) - 1),
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
@@ -78,9 +97,10 @@ export default function RevisionPage() {
         {tab === "due" ? (
           stats?.dueCards && stats.dueCards.length > 0 ? (
             <div className="space-y-3">
-              {stats.dueCards.map((card, idx) => (
-                <motion.div
-                  key={card.conceptName}
+              {stats.dueCards.map((card, idx) => {
+                const query = buildQuery(card.conceptName, card.topicGoal);
+                return <motion.div
+                  key={`${card.conceptName}-${idx}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
@@ -139,6 +159,18 @@ export default function RevisionPage() {
                     </motion.div>
                   )}
 
+                  <div className="mb-4 grid gap-2 sm:grid-cols-3">
+                    <Link to={`/learn?${query}`}>
+                      <Button className="w-full text-xs">Learn</Button>
+                    </Link>
+                    <Link to={`/quiz?${query}`}>
+                      <Button className="w-full text-xs" variant="secondary">Quiz</Button>
+                    </Link>
+                    <Link to={`/practice?${query}`}>
+                      <Button className="w-full text-xs" variant="secondary">Practice</Button>
+                    </Link>
+                  </div>
+
                   <div className="grid grid-cols-5 gap-2">
                     {[
                       { quality: 0, label: "😵", color: "red" },
@@ -146,27 +178,22 @@ export default function RevisionPage() {
                       { quality: 3, label: "😐", color: "yellow" },
                       { quality: 4, label: "🙂", color: "green" },
                       { quality: 5, label: "😄", color: "emerald" },
-                    ].map((q) => (
-                      <motion.div key={q.quality} whileHover={{ scale: 1.05 }}>
-                        <Button
-                          className={`w-full text-xs`}
-                          variant="secondary"
-                          onClick={async () => {
-                            await completeRevisionApi({ conceptName: card.conceptName, quality: q.quality });
-                            setStats({
-                              ...stats,
-                              dueCards: stats.dueCards.filter(c => c.conceptName !== card.conceptName),
-                              dueToday: Math.max(0, stats.dueToday - 1),
-                            });
-                          }}
-                        >
-                          {q.label}
-                        </Button>
-                      </motion.div>
-                    ))}
+                    ].map((q) => {
+                      return (
+                        <motion.div key={q.quality} whileHover={{ scale: 1.05 }}>
+                          <Button
+                            className={`w-full text-xs`}
+                            variant="secondary"
+                            onClick={() => handleComplete(card, q.quality)}
+                          >
+                            {q.label}
+                          </Button>
+                        </motion.div>
+                      );
+                    })}
                   </div>
-                </motion.div>
-              ))}
+                </motion.div>;
+              })}
             </div>
           ) : (
             <motion.div
