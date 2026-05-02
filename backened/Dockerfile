@@ -2,11 +2,16 @@
 FROM gradle:8-jdk21 AS build
 WORKDIR /app
 COPY . .
+
+# 🔥 IMPORTANT FIX
+RUN chmod +x gradlew
+
 RUN ./gradlew bootJar -x test --no-daemon --stacktrace
 
 # Stage 2 — Run
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
+
 EXPOSE 10000
 ENTRYPOINT ["java", "-Xmx400m", "-jar", "app.jar"]
