@@ -8,7 +8,7 @@ RUN chmod +x gradlew
 RUN ./gradlew bootJar -x test --no-daemon
 
 # Stage 2 — Run
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 COPY --from=build /app/build/libs/*.jar app.jar
