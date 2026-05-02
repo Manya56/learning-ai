@@ -24,7 +24,7 @@ public class HealthController {
     private final JdbcTemplate jdbcTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    @GetMapping
+    @RequestMapping(value = "/health", method = { RequestMethod.GET, RequestMethod.HEAD })
     @Operation(summary = "Full health check with DB and Redis status")
     public ResponseEntity<ApiResponse<Map<String, Object>>> health() {
         String dbStatus = checkDatabase();
@@ -37,8 +37,7 @@ public class HealthController {
                 "database", dbStatus,
                 "redis", redisStatus,
                 "timestamp", Instant.now().toString(),
-                "version", "1.0.0"
-        );
+                "version", "1.0.0");
 
         return ResponseEntity.ok(ApiResponse.ok("Health check complete", health));
     }

@@ -39,6 +39,10 @@ class BatchEmbedResponse(BaseModel):
 def health():
     return {"status": "UP", "model": "all-MiniLM-L6-v2", "dimensions": 384}
 
+@app.head("/health")
+def health_head():
+    return {"status": "UP", "model": "all-MiniLM-L6-v2", "dimensions": 384}
+
 @app.post("/embed", response_model=EmbedResponse)
 def embed(request: EmbedRequest):
     """Embed a single text string → 384-dim float vector"""
