@@ -13,8 +13,8 @@ WORKDIR /app
 
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# ✅ THIS IS THE FIX
-COPY backened/models ./models
+# ✅ CORRECT PATH
+COPY models ./models
 
 EXPOSE 10000
 
