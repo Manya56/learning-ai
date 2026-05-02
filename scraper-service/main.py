@@ -55,6 +55,10 @@ JS_SITES = {
 async def health():
     return {"status": "UP", "service": "playwright-scraper"}
 
+@app.head("/health")
+def health_head():
+    return {"status": "UP", "service": "playwright-scraper"}
+
 # ── Main scrape endpoint ──────────────────────────────────────────────────────
 
 @app.post("/scrape", response_model=ScrapeResponse)
