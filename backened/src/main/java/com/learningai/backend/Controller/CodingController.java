@@ -19,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/practice")
@@ -71,5 +72,15 @@ public class CodingController {
                 return ResponseEntity.ok(ApiResponse.ok(
                                 codingService.getConceptHistory(
                                                 user.getId(), conceptName)));
+        }
+
+        @GetMapping("/attempt/{attemptId}")
+        @Operation(summary = "Get detailed practice attempt results")
+        public ResponseEntity<ApiResponse<CodingAttemptResponse>> getAttemptDetails(
+                        @AuthenticationPrincipal User user,
+                        @PathVariable UUID attemptId) {
+
+                CodingAttemptResponse attempt = codingService.getAttemptDetails(user.getId(), attemptId);
+                return ResponseEntity.ok(ApiResponse.ok("Attempt details retrieved", attempt));
         }
 }

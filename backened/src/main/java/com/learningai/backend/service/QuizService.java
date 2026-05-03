@@ -32,6 +32,7 @@ public class QuizService {
         private final XpService xpService;
 
         private static final String HINT_KEY = "quiz:hints:";
+        private static final String ANSWER_KEY = "quiz:answers:";
         private static final int QUESTIONS_PER_SESSION = 5;
 
         // ─── Start a new quiz session ─────────────────────────────────────────
@@ -309,6 +310,11 @@ public class QuizService {
                                 .collect(Collectors.toList());
         }
 
+        public QuizDetailedResponse getSessionDetails(UUID userId, UUID sessionId) {
+                QuizSession session = getActiveSession(sessionId, userId);
+                return mapToDetailedResponse(session);
+        }
+
         // ─── Helpers ─────────────────────────────────────────────────────────
 
         private QuizSession getActiveSession(UUID sessionId, UUID userId) {
@@ -407,5 +413,64 @@ public class QuizService {
                                 .completedAt(session.getCompletedAt())
                                 .status(session.getStatus().name())
                                 .build();
+        }
+
+        private QuizDetailedResponse mapToDetailedResponse(QuizSession session) {
+                double accuracyPercent = session.getTotalQuestions() > 0
+                                ? (double) session.getTotalCorrect() / session.getTotalQuestions() * 100
+                                : 0.0;
+
+                long timeTakenMs = session.getCompletedAt() != null && session.getStartedAt() != null
+                                ? session.getCompletedAt().toEpochMilli() - session.getStartedAt().toEpochMilli()
+                                : 0L;
+
+                // Get user answers from Redis or wherever they're stored
+                List<QuizDetailedResponse.QuizQuestionWithAnswer> questionsWithAnswers = new ArrayList<>();
+                if (session.getQuestions() != null) {
+                        for (int i = 0; i < session.getQuestions().size(); i++) {
+                                QuizSession.QuizQuestionData q = session.getQuestions().get(i);
+                                Integer selectedAnswer = getUserAnswer(session.getId(), i);
+
+                                questionsWithAnswers.add(QuizDetailedResponse.QuizQuestionWithAnswer.builder()
+                                                .questionIndex(i)
+                                                .question(q.getQuestion())
+                                                .options(q.getOptions())
+                                                .correctAnswerIndex(q.getCorrectAnswerIndex())
+                                                .selectedAnswerIndex(selectedAnswer)
+                                                .explanation(q.getExplanation())
+                                                .answeredCorrectly(selectedAnswer != null
+                                                                && selectedAnswer == q.getCorrectAnswerIndex())
+                                                .build());
+                        }
+                }
+
+                return QuizDetailedResponse.builder()
+                                .sessionId(session.getId())
+                                .conceptName(session.getConceptName())
+                                .difficulty(session.getDifficulty())
+                                .learningStyle(session.getLearningStyle())
+                                .totalQuestions(session.getTotalQuestions())
+                                .totalCorrect(session.getTotalCorrect())
+                                .accuracyPercent(accuracyPercent)
+                                .timeTakenMs(timeTakenMs)
+                                .startedAt(session.getStartedAt())
+                                .completedAt(session.getCompletedAt())
+                                .status(session.getStatus().name())
+                                .questions(questionsWithAnswers)
+                                .build();
+        }
+
+        private Integer getUserAnswer(UUID sessionId, int questionIndex) {
+                String key = ANSWER_KEY + sessionId + ":" + questionIndex;
+                try {
+                        Object val = redisTemplate.opsForValue().get(key);
+                        if (val == null)
+                                return null;
+                        return Integer.parseInt(val.toString());
+                } catch (Exception e) {
+                        log.warn("Failed to get user answer for session {}, q{}: {}", sessionId, questionIndex,
+                                        e.getMessage());
+                        return null;
+                }
         }
 }

@@ -4,3 +4,4 @@ export const generatePracticeApi = (payload) => api.post("/api/practice/generate
 export const evaluatePracticeApi = (payload) => api.post("/api/practice/evaluate", payload).then(unwrap);
 export const getCodingHistoryApi = () => api.get("/api/practice/history").then(unwrap);
 export const getCodingConceptHistoryApi = (conceptName) => api.get(`/api/practice/history/${conceptName}`).then(unwrap);
+export const getCodingAttemptDetailsApi = (attemptId) => api.get(`/api/practice/attempt/${attemptId}`).then(unwrap);

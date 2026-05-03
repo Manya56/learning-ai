@@ -140,6 +140,17 @@ public class CodingService {
                                 .toList();
         }
 
+        public CodingAttemptResponse getAttemptDetails(UUID userId, UUID attemptId) {
+                CodingAttempt attempt = attemptRepository.findById(attemptId)
+                                .orElseThrow(() -> AppException.notFound("Attempt not found"));
+
+                if (!attempt.getUser().getId().equals(userId)) {
+                        throw AppException.forbidden("Not your attempt");
+                }
+
+                return mapToResponse(attempt);
+        }
+
         public CodingAttemptResponse mapToResponse(CodingAttempt attempt) {
                 return CodingAttemptResponse.builder()
                                 .id(attempt.getId())
