@@ -6,9 +6,11 @@ import Button from "../components/ui/Button";
 export default function MentorPage() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [sending, setSending] = useState(false);
 
   const send = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || sending) return;
+    setSending(true);
     const user = { role: "user", content: message };
     setMessages((prev) => [...prev, user]);
     setMessage("");
@@ -17,6 +19,8 @@ export default function MentorPage() {
       setMessages((prev) => [...prev, { role: "assistant", content: res.reply || "..." }]);
     } catch {
       setMessages((prev) => [...prev, { role: "system", content: "Something went wrong. Try again." }]);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -30,8 +34,15 @@ export default function MentorPage() {
           </div>
         ))}
       </div>
-      <textarea className="w-full rounded-md bg-[var(--surface-2)] p-2" value={message} onChange={(e) => setMessage(e.target.value)} />
-      <Button className="mt-2" onClick={send}>Send</Button>
+      <textarea
+        className="w-full rounded-md bg-[var(--surface-2)] p-2"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        disabled={sending}
+      />
+      <Button className="mt-2" disabled={sending || !message.trim()} onClick={send}>
+        {sending ? "Sending..." : "Send"}
+      </Button>
     </Card>
   );
 }

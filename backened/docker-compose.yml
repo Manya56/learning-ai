@@ -18,7 +18,7 @@ services:
       retries: 5
 
   embedding:
-    build: ../embedding-service
+    build: ../embeddings
     container_name: learning_embedding
     ports:
       - "8002:10000"

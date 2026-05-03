@@ -301,11 +301,11 @@ public class QuizService {
         }
         // ─── Get session history ──────────────────────────────────────────────
 
-        public List<QuizSessionResponse> getHistory(UUID userId) {
+        public List<QuizHistoryResponse> getHistory(UUID userId) {
                 return sessionRepository
                                 .findTop10ByUserIdOrderByStartedAtDesc(userId)
                                 .stream()
-                                .map(s -> mapToSessionResponse(s, false))
+                                .map(this::mapToHistoryResponse)
                                 .collect(Collectors.toList());
         }
 
@@ -380,6 +380,32 @@ public class QuizService {
                                 .status(session.getStatus().name())
                                 .totalQuestions(session.getTotalQuestions())
                                 .startedAt(session.getStartedAt())
+                                .build();
+        }
+
+        private QuizHistoryResponse mapToHistoryResponse(QuizSession session) {
+                Long timeTakenMs = null;
+                if (session.getCompletedAt() != null && session.getStartedAt() != null) {
+                        timeTakenMs = session.getCompletedAt().toEpochMilli() - session.getStartedAt().toEpochMilli();
+                }
+
+                Double accuracyPercent = null;
+                if (session.getTotalQuestions() != null && session.getTotalQuestions() > 0) {
+                        accuracyPercent = (session.getTotalCorrect() * 100.0) / session.getTotalQuestions();
+                }
+
+                return QuizHistoryResponse.builder()
+                                .sessionId(session.getId())
+                                .conceptName(session.getConceptName())
+                                .difficulty(session.getDifficulty())
+                                .learningStyle(session.getLearningStyle())
+                                .totalQuestions(session.getTotalQuestions())
+                                .totalCorrect(session.getTotalCorrect())
+                                .accuracyPercent(accuracyPercent)
+                                .timeTakenMs(timeTakenMs)
+                                .startedAt(session.getStartedAt())
+                                .completedAt(session.getCompletedAt())
+                                .status(session.getStatus().name())
                                 .build();
         }
 }
