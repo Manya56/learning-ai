@@ -93,4 +93,14 @@ public class QuizController {
                 return ResponseEntity.ok(ApiResponse.ok(
                                 quizService.getHistory(user.getId())));
         }
+
+        @GetMapping("/{sessionId}/details")
+        @Operation(summary = "Get detailed quiz session results including questions and answers")
+        public ResponseEntity<ApiResponse<QuizDetailedResponse>> getSessionDetails(
+                        @AuthenticationPrincipal User user,
+                        @PathVariable UUID sessionId) {
+
+                QuizDetailedResponse details = quizService.getSessionDetails(user.getId(), sessionId);
+                return ResponseEntity.ok(ApiResponse.ok("Session details retrieved", details));
+        }
 }

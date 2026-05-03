@@ -7,3 +7,4 @@ export const completeQuizApi = (sessionId) => api.post(`/api/quiz/${sessionId}/c
 export const getQuizHistoryApi = () => api.get("/api/quiz/history").then(unwrap);
 export const getQuizHintApi = (sessionId, questionIndex, hintNumber = 1) =>
   api.get(`/api/quiz/${sessionId}/hint`, { params: { questionIndex, hintNumber } }).then(unwrap);
+export const getQuizDetailsApi = (sessionId) => api.get(`/api/quiz/${sessionId}/details`).then(unwrap);

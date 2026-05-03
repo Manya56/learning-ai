@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { completeQuizApi, startQuizApi, submitQuizAnswerApi, getQuizHistoryApi } from "../api/quiz";
+import { completeQuizApi, startQuizApi, submitQuizAnswerApi, getQuizHistoryApi, getQuizHintApi } from "../api/quiz";
 import { getCurrentTopicApi, getRoadmapApi } from "../api/roadmap";
 import { useUiStore } from "../store/uiStore";
 import Card from "../components/ui/Card";
@@ -31,6 +31,8 @@ export default function QuizPage() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [hints, setHints] = useState({});
+  const [loadingHint, setLoadingHint] = useState(false);
   const setActiveQuizSession = useUiStore((s) => s.setActiveQuizSession);
   const clearQuizSession = useUiStore((s) => s.clearQuizSession);
   const activeQuizSessionId = useUiStore((s) => s.activeQuizSessionId);
@@ -67,6 +69,23 @@ export default function QuizPage() {
       console.error("Failed to load quiz history:", err);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const getHint = async (hintNumber = 1) => {
+    if (!session || loadingHint) return;
+
+    setLoadingHint(true);
+    try {
+      const hint = await getQuizHintApi(session.sessionId, index, hintNumber);
+      setHints(prev => ({
+        ...prev,
+        [`${index}-${hintNumber}`]: hint.hint
+      }));
+    } catch (err) {
+      console.error("Failed to get hint:", err);
+    } finally {
+      setLoadingHint(false);
     }
   };
 
@@ -303,7 +322,7 @@ export default function QuizPage() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: idx * 0.05 }}
-                      className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3"
+                      className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div>
@@ -317,9 +336,10 @@ export default function QuizPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="mt-2 flex gap-4 text-xs text-[var(--text-muted)]">
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
                         <span>⏱️ {formatMs(quiz.timeTakenMs || 0)}</span>
                         <span>📊 {quiz.difficulty || "Unknown"}</span>
+                        <span className="rounded-full bg-[var(--surface)] px-2 py-1 text-[var(--text-muted)]">Session {quiz.sessionId?.slice(-6) || "-"}</span>
                       </div>
                     </motion.div>
                   ))}
@@ -341,7 +361,8 @@ export default function QuizPage() {
   }
 
   return (
-    <Card>
+    <div className="relative">
+      <Card>
       {showLeavePrompt ? (
         <div className="mb-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
           <p className="mb-2 text-sm">You have an active quiz session. Continue or abandon?</p>
@@ -361,19 +382,56 @@ export default function QuizPage() {
       ) : null}
       <p className="mb-2 text-sm text-[var(--text-muted)]">Question {index + 1} / {session.totalQuestions || session.questions.length} • {formatMs(elapsed)}</p>
       <h3 className="mb-3 text-lg">{question.question}</h3>
+
+      {/* Hints Section */}
+      <div className="mb-4">
+        <div className="flex gap-2 mb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingHint || revealed}
+            onClick={() => getHint(1)}
+          >
+            💡 Hint 1
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingHint || revealed || !hints[`${index}-1`]}
+            onClick={() => getHint(2)}
+          >
+            💡 Hint 2
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loadingHint || revealed || !hints[`${index}-2`]}
+            onClick={() => getHint(3)}
+          >
+            💡 Hint 3
+          </Button>
+        </div>
+        {loadingHint && <p className="text-sm text-[var(--text-muted)]">Loading hint...</p>}
+        {Object.entries(hints).filter(([key]) => key.startsWith(`${index}-`)).map(([key, hint]) => (
+          <div key={key} className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+            <p className="text-sm text-blue-800">{hint}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="space-y-2">
         {(question.options || []).map((opt, i) => {
           const isCorrect = revealed?.correctIndex === i;
           const isSelected = selected === i;
           const optionClass = revealed
             ? isCorrect
-              ? "border-green-400 bg-green-50"
+              ? "border-green-400 bg-green-50 text-green-900"
               : isSelected
-                ? "border-red-400 bg-red-50"
-                : "border-[var(--border)] bg-[var(--surface-2)]"
+                ? "border-red-400 bg-red-50 text-red-900"
+                : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)]"
             : isSelected
-              ? "border-[var(--accent)]"
-              : "border-[var(--border)]";
+              ? "border-[var(--accent)] text-[var(--text)]"
+              : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-2)]";
 
           return (
             <button
@@ -441,5 +499,6 @@ export default function QuizPage() {
         </button>
       </div>
     </Card>
+  </div>
   );
 }
