@@ -9,6 +9,7 @@ export default function RevisionPage() {
   const [stats, setStats] = useState(null);
   const [allCards, setAllCards] = useState([]);
   const [tab, setTab] = useState("due");
+  const [completingCards, setCompletingCards] = useState([]);
 
   useEffect(() => {
     getRevisionDueApi()
@@ -33,12 +34,18 @@ export default function RevisionPage() {
   };
 
   const handleComplete = async (card, quality) => {
-    await completeRevisionApi({ conceptName: card.conceptName, quality });
-    setStats({
-      ...stats,
-      dueCards: stats.dueCards.filter((c) => c.conceptName !== card.conceptName),
-      dueToday: Math.max(0, (stats.dueToday || 1) - 1),
-    });
+    if (completingCards.includes(card.conceptName)) return;
+    setCompletingCards((prev) => [...prev, card.conceptName]);
+    try {
+      await completeRevisionApi({ conceptName: card.conceptName, quality });
+      setStats({
+        ...stats,
+        dueCards: stats.dueCards.filter((c) => c.conceptName !== card.conceptName),
+        dueToday: Math.max(0, (stats.dueToday || 1) - 1),
+      });
+    } finally {
+      setCompletingCards((prev) => prev.filter((id) => id !== card.conceptName));
+    }
   };
 
   return (
@@ -182,11 +189,12 @@ export default function RevisionPage() {
                       return (
                         <motion.div key={q.quality} whileHover={{ scale: 1.05 }}>
                           <Button
-                            className={`w-full text-xs`}
+                            className="w-full text-xs"
                             variant="secondary"
+                            disabled={completingCards.includes(card.conceptName)}
                             onClick={() => handleComplete(card, q.quality)}
                           >
-                            {q.label}
+                            {completingCards.includes(card.conceptName) ? "Saving..." : q.label}
                           </Button>
                         </motion.div>
                       );

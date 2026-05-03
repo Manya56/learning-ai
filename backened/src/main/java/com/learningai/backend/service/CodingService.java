@@ -2,6 +2,7 @@ package com.learningai.backend.service;
 
 import com.learningai.backend.dto.request.EvaluateSubmissionRequest;
 import com.learningai.backend.dto.request.GenerateProblemRequest;
+import com.learningai.backend.dto.response.CodingAttemptResponse;
 import com.learningai.backend.dto.response.EvaluationResult;
 import com.learningai.backend.dto.response.ProblemResponse;
 import com.learningai.backend.entity.CodingAttempt;
@@ -119,18 +120,41 @@ public class CodingService {
 
         // ─── Get attempt history ──────────────────────────────────────────────
 
-        public List<CodingAttempt> getHistory(UUID userId) {
+        public List<CodingAttemptResponse> getHistory(UUID userId) {
                 return attemptRepository
-                                .findTop10ByUserIdOrderByAttemptedAtDesc(userId);
+                                .findTop10ByUserIdOrderByAttemptedAtDesc(userId)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .toList();
         }
 
         // ─── Get attempts for a specific concept ─────────────────────────────
 
-        public List<CodingAttempt> getConceptHistory(UUID userId,
+        public List<CodingAttemptResponse> getConceptHistory(UUID userId,
                         String conceptName) {
                 return attemptRepository
                                 .findByUserIdAndConceptNameOrderByAttemptedAtDesc(
-                                                userId, conceptName);
+                                                userId, conceptName)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .toList();
+        }
+
+        public CodingAttemptResponse mapToResponse(CodingAttempt attempt) {
+                return CodingAttemptResponse.builder()
+                                .id(attempt.getId())
+                                .conceptName(attempt.getConceptName())
+                                .problemStatement(attempt.getProblemStatement())
+                                .problemType(attempt.getProblemType())
+                                .language(attempt.getLanguage())
+                                .userSubmission(attempt.getUserSubmission())
+                                .score(attempt.getScore())
+                                .feedback(attempt.getFeedback())
+                                .passed(attempt.getPassed())
+                                .timeTakenMs(attempt.getTimeTakenMs())
+                                .difficulty(attempt.getDifficulty())
+                                .attemptedAt(attempt.getAttemptedAt())
+                                .build();
         }
 
         // ─── Helpers ─────────────────────────────────────────────────────────
