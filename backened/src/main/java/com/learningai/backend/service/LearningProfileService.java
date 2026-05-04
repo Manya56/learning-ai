@@ -259,6 +259,8 @@ public class LearningProfileService {
         return LearningProfileResponse.builder()
                 .profileId(p.getId())
                 .userId(p.getUser().getId())
+                .fullName(p.getUser().getFullName())
+                .email(p.getUser().getEmail())
                 .goal(p.getGoal())
                 .goalDescription(p.getGoalDescription())
                 .preferredLanguage(p.getPreferredLanguage())

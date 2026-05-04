@@ -14,6 +14,8 @@ public class LearningProfileResponse {
 
     private UUID profileId;
     private UUID userId;
+    private String fullName;
+    private String email;
     private String goal;
     private String goalDescription;
     private String preferredLanguage;

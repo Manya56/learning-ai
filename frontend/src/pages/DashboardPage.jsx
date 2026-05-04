@@ -76,7 +76,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-lg bg-[var(--surface-2)] p-2">🔥 {overview.currentStreak ?? "-"} days</div>
-            <div className="rounded-lg bg-[var(--surface-2)] p-2">🎯 {overview.overallAccuracy ?? "-"}%</div>
+            <div className="rounded-lg bg-[var(--surface-2)] p-2">🎯 {(overview.overallAccuracy ?? 0).toFixed(2)}%</div>
             <div className="rounded-lg bg-[var(--surface-2)] p-2">❓ {overview.questionsThisWeek ?? "-"}</div>
             <div className="rounded-lg bg-[var(--surface-2)] p-2">🔁 {overview.dueRevisions ?? "-"}</div>
           </div>
