@@ -32,7 +32,7 @@ export default function ProfilePage() {
             </div>
             <div className="rounded-3xl bg-white/10 p-4 text-center backdrop-blur-sm">
               <p className="text-xs uppercase text-slate-200">Difficulty</p>
-              <p className="mt-2 text-lg font-semibold">{profile?.difficultyLevel || "N/A"}</p>
+              <p className="mt-2 text-lg font-semibold">{profile?.currentDifficulty || "N/A"}</p>
             </div>
           </div>
         </div>
@@ -48,11 +48,11 @@ export default function ProfilePage() {
             </div>
             <div className="rounded-3xl bg-[var(--surface-2)] p-5 shadow-sm">
               <p className="text-sm text-[var(--text-muted)]">Accuracy</p>
-              <p className="mt-3 text-3xl font-bold">{profile?.overallAccuracy ?? 0}%</p>
+              <p className="mt-3 text-3xl font-bold">{(profile?.overallAccuracy ?? 0).toFixed(2)}%</p>
             </div>
             <div className="rounded-3xl bg-[var(--surface-2)] p-5 shadow-sm">
               <p className="text-sm text-[var(--text-muted)]">Avg Time</p>
-              <p className="mt-3 text-3xl font-bold">{profile?.averageTimePerQuestionMs ?? 0}ms</p>
+              <p className="mt-3 text-3xl font-bold">{((profile?.avgTimePerQuestionMs ?? 0) / 1000).toFixed(1)}s</p>
             </div>
             <div className="rounded-3xl bg-[var(--surface-2)] p-5 shadow-sm">
               <p className="text-sm text-[var(--text-muted)]">Hint Usage</p>

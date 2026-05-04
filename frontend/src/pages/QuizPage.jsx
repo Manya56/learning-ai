@@ -205,7 +205,7 @@ export default function QuizPage() {
     return (
       <Card>
         <h3 className="mb-2 text-2xl font-semibold">Score: {result.totalCorrect}/{result.totalQuestions}</h3>
-        <p className="mb-2 text-xs text-[var(--text-muted)]">Accuracy: {result.accuracyPercent ?? 0}%</p>
+        <p className="mb-2 text-xs text-[var(--text-muted)]">Accuracy: {(result.accuracyPercent ?? 0).toFixed(2)}%</p>
         <p className="text-sm text-[var(--text-muted)]">{result.roadmapMessage || "Keep practicing."}</p>
         <div className="mt-3 flex gap-2">
           <Link to={`/practice?concept=${encodeURIComponent(concept)}&topic=${encodeURIComponent(topic)}`}>
@@ -297,7 +297,7 @@ export default function QuizPage() {
                 </div>
                 <div className="rounded-lg bg-green-50 p-3 text-center">
                   <p className="text-xs text-[var(--text-muted)]">Avg Accuracy</p>
-                  <p className="text-xl font-bold text-green-600">{stats.avgAccuracy}%</p>
+                  <p className="text-xl font-bold text-green-600">{stats.avgAccuracy.toFixed(2)}%</p>
                 </div>
                 <div className="rounded-lg bg-purple-50 p-3 text-center">
                   <p className="text-xs text-[var(--text-muted)]">Pass Rate</p>
