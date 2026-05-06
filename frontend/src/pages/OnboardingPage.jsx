@@ -6,6 +6,7 @@ import { useProfileStore } from "../store/profileStore";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
+import AnimatedRoadmap from "../components/ui/AnimatedRoadmap";
 
 const goals = ["DSA", "Finance", "Social Media Marketing", "Music Theory", "Python", "Cooking"];
 const priorLevels = ["BEGINNER", "SOME_KNOWLEDGE", "INTERMEDIATE"];
@@ -27,11 +28,6 @@ export default function OnboardingPage() {
   const [roadmap, setRoadmap] = useState(null);
   const [error, setError] = useState("");
   const [navigating, setNavigating] = useState(false);
-  const topicsToShow = roadmap?.topics?.length
-    ? roadmap.topics.map((topic) => topic?.topicName || topic).filter(Boolean)
-    : roadmap?.roadmapTopics?.length
-      ? roadmap.roadmapTopics
-      : [];
 
   const currentQuestion = questions[index];
 
@@ -173,25 +169,87 @@ export default function OnboardingPage() {
         ) : null}
         {step === 4 && (
           <>
-            <h2 className="mb-4 text-2xl font-semibold">{loading ? "Building your personalized roadmap..." : "Your roadmap is ready!"}</h2>
-            {error ? <p className="mb-3 rounded bg-red-500/10 p-2 text-sm text-red-400">{error}</p> : null}
-            {topicsToShow.length ? (
+            <div className="text-center mb-8">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                {loading ? "Building your personalized roadmap..." : "Your Learning Adventure Begins! 🚀"}
+              </h2>
+              {!loading && (
+                <p className="mt-3 text-lg text-slate-600 dark:text-slate-400">
+                  Here's your customized learning path with {roadmap?.topics?.length || 0} exciting topics to master
+                </p>
+              )}
+            </div>
+
+            {error ? (
+              <div className="mb-6 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4">
+                <p className="text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            ) : null}
+
+            {roadmap?.topics?.length ? (
               <>
-                <div className="mb-4 grid gap-2">
-                  {topicsToShow.map((topicName, idx) => (
-                    <div key={`${topicName}-${idx}`} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                      <p className="text-xs text-[var(--text-muted)]">Topic {idx + 1}</p>
-                      <p className="font-medium">{topicName}</p>
-                    </div>
-                  ))}
+                {/* Hero Section */}
+                <div className="mb-8 rounded-3xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 p-8 text-white shadow-2xl">
+                  <div className="text-center">
+                    <div className="mb-4 text-6xl">🎯</div>
+                    <h3 className="text-2xl font-bold mb-2">Ready to Start Your Journey?</h3>
+                    <p className="text-indigo-100">
+                      Your personalized roadmap is designed just for you. Each topic builds upon the last,
+                      creating a smooth learning experience.
+                    </p>
+                  </div>
                 </div>
-                <Button onClick={startLearning} disabled={navigating}>
-                  {navigating ? "Opening dashboard..." : "Start Learning"}
-                </Button>
+
+                {/* Animated Roadmap with Topics and Subtopics */}
+                <Card className="rounded-3xl p-8 mb-8 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border-2 border-slate-200/50 dark:border-slate-700/50">
+                  <div className="text-center mb-6">
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Your Learning Roadmap</h3>
+                    <p className="text-slate-600 dark:text-slate-400">Topics and concepts you'll master along the way</p>
+                  </div>
+
+                  <AnimatedRoadmap
+                    topics={roadmap.topics.map((t) => ({
+                      topicName: t.topicName,
+                      status: "UNLOCKED",
+                      progressPercent: 0,
+                      concepts: t.concepts || [],
+                      completedConcepts: []
+                    }))}
+                    currentProgress={0}
+                    showStatus={false}
+                  />
+                </Card>
+
+                {/* Call to Action */}
+                <div className="text-center">
+                  <Button
+                    onClick={startLearning}
+                    disabled={navigating}
+                    className="px-12 py-4 text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-200"
+                  >
+                    {navigating ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Opening Your Dashboard...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        🚀 Start Learning Now
+                      </div>
+                    )}
+                  </Button>
+
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                    Don't worry, you can always review your roadmap later in your dashboard
+                  </p>
+                </div>
               </>
-            ) : (
-              <div className="h-24 animate-pulse rounded bg-[var(--surface-2)]" />
-            )}
+            ) : !loading ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse"></div>
+                <p className="text-slate-600 dark:text-slate-400">Preparing your learning path...</p>
+              </div>
+            ) : null}
           </>
         )}
       </Card>
