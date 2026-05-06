@@ -3,116 +3,172 @@ import { Link } from "react-router-dom";
 import { getRoadmapApi } from "../api/roadmap";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import AnimatedRoadmap from "../components/ui/AnimatedRoadmap";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState(null);
-  const [filter, setFilter] = useState("ALL");
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     getRoadmapApi().then(setRoadmap).catch(() => setRoadmap({ topics: [] }));
   }, []);
 
-  const topicFilters = ["ALL", "IN_PROGRESS", "COMPLETED", "UNLOCKED"];
-  const visibleTopics = (roadmap?.topics || []).filter((t) => filter === "ALL" || t.status === filter);
-  const statusColor = (status) =>
-    status === "COMPLETED"
-      ? "text-green-400 bg-green-500/10 border-green-500/30"
-      : status === "IN_PROGRESS"
-        ? "text-sky-300 bg-sky-500/10 border-sky-500/30"
-        : status === "UNLOCKED"
-          ? "text-violet-300 bg-violet-500/10 border-violet-500/30"
-          : "text-[var(--text-muted)] bg-[var(--surface-2)] border-[var(--border)]";
+  const completedCount = (roadmap?.topics || []).filter((t) => t.status === "COMPLETED").length;
+
+  const handleTopicSelect = (topicName) => {
+    const topic = (roadmap?.topics || []).find((t) => t.topicName === topicName);
+    if (topic) {
+      setSelectedTopic(topic);
+      setShowModal(true);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "COMPLETED":
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
+      case "IN_PROGRESS":
+        return "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300";
+      case "UNLOCKED":
+        return "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300";
+      default:
+        return "bg-slate-100 text-slate-800 dark:bg-slate-900/50 dark:text-slate-300";
+    }
+  };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card className="lg:col-span-2">
-        <div className="mb-3 rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface-2)] to-transparent p-4">
-          <h3 className="text-xl font-semibold">Your Learning Roadmap</h3>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {(roadmap?.completedTopics ?? 0)}/{(roadmap?.totalTopics ?? roadmap?.topics?.length ?? 0)} topics completed •
-            {" "}{roadmap?.overallProgressPercent ?? 0}% overall progress
-          </p>
-        </div>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {topicFilters.map((item) => (
-            <button
-              key={item}
-              onClick={() => setFilter(item)}
-              className={`rounded-full border px-3 py-1.5 text-xs ${
-                filter === item ? "border-[var(--accent)] bg-[var(--accent-light)]" : "border-[var(--border)] bg-[var(--surface-2)]"
-              }`}
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="rounded-3xl bg-gradient-to-r from-indigo-600 via-purple-700 to-pink-700 p-6 text-white shadow-2xl shadow-slate-900/30">
+        <h1 className="text-4xl font-bold tracking-tight">Your Learning Journey</h1>
+        <p className="mt-2 text-sm text-slate-200">
+          {completedCount} of {roadmap?.topics?.length || 0} topics completed • {roadmap?.overallProgressPercent || 0}% progress
+        </p>
+      </div>
+
+      {/* Animated Roadmap Journey */}
+      {roadmap?.topics && (
+        <Card className="rounded-3xl p-6 lg:p-8">
+          <AnimatedRoadmap
+            topics={roadmap.topics || []}
+            currentProgress={completedCount}
+            onTopicClick={handleTopicSelect}
+          />
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {!roadmap && (
+        <Card className="rounded-3xl p-8">
+          <div className="h-64 animate-pulse rounded-lg bg-slate-300 dark:bg-slate-700" />
+        </Card>
+      )}
+
+      {/* Topic Details Modal */}
+      <AnimatePresence>
+        {showModal && selectedTopic && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800"
             >
-              {item.replace("_", " ")}
-            </button>
-          ))}
-        </div>
-        {!roadmap ? (
-          <div className="h-24 animate-pulse rounded bg-[var(--surface-2)]" />
-        ) : visibleTopics.length ? (
-          <div className="space-y-2">
-            {visibleTopics.map((topic) => (
-              <button
-                key={topic.topicOrder}
-                onClick={() => setSelectedTopic(topic)}
-                className={`w-full rounded-xl border p-3 text-left transition ${selectedTopic?.topicOrder === topic.topicOrder ? "border-[var(--accent)] bg-[var(--accent-light)]/40" : "border-[var(--border)] bg-[var(--surface-2)]/40"}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium">{topic.topicOrder + 1}. {topic.topicName}</p>
-                  <span className={`rounded-full border px-2 py-0.5 text-[10px] ${statusColor(topic.status)}`}>
-                    {topic.status || "UNLOCKED"}
+              <div className="p-6 lg:p-8">
+                {/* Header */}
+                <div className="mb-6 flex items-start justify-between">
+                  <div>
+                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{selectedTopic.topicName}</h2>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                      {selectedTopic.progressPercent || 0}% complete • {selectedTopic.concepts?.length || 0} concepts
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="rounded-full border border-slate-300 dark:border-slate-700 p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Status Badge */}
+                <div className="mb-6">
+                  <span className={`inline-block rounded-full px-4 py-2 text-sm font-semibold ${getStatusColor(selectedTopic.status)}`}>
+                    {selectedTopic.status || "LOCKED"}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">{topic.progressPercent ?? 0}% complete</p>
-                <div className="mt-2 h-2 rounded bg-[var(--surface-2)]">
-                  <div className="h-2 rounded bg-[var(--accent)]" style={{ width: `${topic.progressPercent || 0}%` }} />
-                </div>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--text-muted)]">No topics for this filter.</p>
-        )}
-      </Card>
-      <Card>
-        <h3 className="mb-2 font-semibold">Topic Details</h3>
-        {!selectedTopic ? (
-          <p className="text-sm text-[var(--text-muted)]">Select a topic to view details.</p>
-        ) : (
-          <>
-            <p className="font-medium">{selectedTopic.topicName}</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] ${statusColor(selectedTopic.status)}`}>
-                {selectedTopic.status}
-              </span>
-              <p className="text-xs text-[var(--text-muted)]">{selectedTopic.progressPercent ?? 0}% progress</p>
-            </div>
-            <div className="mt-3 space-y-1">
-              {(selectedTopic.concepts || []).map((concept) => {
-                const done = (selectedTopic.completedConcepts || []).includes(concept);
-                return (
-                  <div key={concept} className="rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs">
-                    {done ? "✅" : "○"} {concept}
+
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="mb-2 flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <span>Progress</span>
+                    <span>{selectedTopic.progressPercent || 0}%</span>
                   </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <Link to={`/learn?concept=${encodeURIComponent(selectedTopic.nextConcept || "")}&topic=${encodeURIComponent(selectedTopic.topicName)}`}>
-                <Button>Open Learn</Button>
-              </Link>
-              <Link to="/roadmap/current">
-                <Button variant="ghost">Current Topic</Button>
-              </Link>
-            </div>
-          </>
+                  <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-800">
+                    <motion.div
+                      className="h-3 rounded-full bg-gradient-to-r from-sky-500 to-emerald-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${selectedTopic.progressPercent || 0}%` }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Concepts */}
+                <div className="mb-6">
+                  <h3 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Concepts to Master</h3>
+                  <div className="space-y-2">
+                    {(selectedTopic.concepts || []).map((concept, idx) => {
+                      const done = (selectedTopic.completedConcepts || []).includes(concept);
+                      return (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className={`rounded-lg border-2 p-3 flex items-center gap-3 ${
+                            done
+                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30"
+                              : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/30"
+                          }`}
+                        >
+                          <span className="text-xl">{done ? "✅" : "⭕"}</span>
+                          <span className={`font-medium ${done ? "text-emerald-700 dark:text-emerald-300" : "text-slate-700 dark:text-slate-300"}`}>
+                            {concept}
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  {selectedTopic.status !== "LOCKED" && (
+                    <Link to={`/learn?concept=${encodeURIComponent(selectedTopic.nextConcept || "")}&topic=${encodeURIComponent(selectedTopic.topicName)}`} className="flex-1">
+                      <Button className="w-full">Learn This Topic</Button>
+                    </Link>
+                  )}
+                  {selectedTopic.status === "IN_PROGRESS" && (
+                    <Link to="/roadmap/current" className="flex-1">
+                      <Button variant="outline" className="w-full">Continue Current</Button>
+                    </Link>
+                  )}
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowModal(false)}
+                    className="w-full"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
-      </Card>
-      <div className="lg:col-span-3">
-        <Link to="/roadmap/current">
-          <Button className="mt-2">Continue This Topic</Button>
-        </Link>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
