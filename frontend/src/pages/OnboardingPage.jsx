@@ -30,6 +30,7 @@ export default function OnboardingPage() {
   const [navigating, setNavigating] = useState(false);
 
   const currentQuestion = questions[index];
+  const containerClass = step === 4 ? "mx-auto max-w-6xl p-4" : "mx-auto max-w-3xl p-4";
 
   useEffect(() => {
     if (step !== 4 || roadmap) return;
@@ -88,7 +89,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl p-4">
+    <div className={containerClass}>
       <Card>
         <p className="mb-4 text-sm text-[var(--text-muted)]">{stepLabel}</p>
         {step === 1 && (
@@ -217,6 +218,8 @@ export default function OnboardingPage() {
                     }))}
                     currentProgress={0}
                     showStatus={false}
+                    showProgress={false}
+                    onboardingMode={true}
                   />
                 </Card>
 
