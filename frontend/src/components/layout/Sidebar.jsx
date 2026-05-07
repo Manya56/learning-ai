@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Map, BookOpen, Brain, User, CircleHelp, Code2, RefreshCcw, ChartNoAxesCombined, Trophy } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useProfileStore } from "../../store/profileStore";
@@ -19,6 +19,7 @@ const items = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const revisionDueCount = useProfileStore((s) => s.revisionDueCount);
   return (
@@ -46,7 +47,13 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <button className="mt-8 text-sm text-[var(--error)]" onClick={logout}>
+      <button
+        className="mt-8 text-sm text-[var(--error)]"
+        onClick={() => {
+          logout();
+          navigate("/login", { replace: true });
+        }}
+      >
         Logout
       </button>
     </aside>
