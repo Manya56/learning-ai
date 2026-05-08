@@ -238,7 +238,7 @@ export default function PracticePage() {
             </Button>
           </>
         )}
-        {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
+        {error? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
         {result ? (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
