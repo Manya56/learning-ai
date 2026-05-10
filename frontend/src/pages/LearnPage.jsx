@@ -129,7 +129,7 @@ export default function LearnPage() {
       </Card>
       <Card>
         <label className="mb-2 block text-sm text-[var(--text-muted)]">What do you want to understand?</label>
-        <textarea className="min-h-28 w-full rounded-md bg-[var(--surface-2)] p-2" value={question} onChange={(e) => setQuestion(e.target.value)} />
+        <textarea className="min-h-28 w-full rounded-md bg-[var(--surface-2)] p-2" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={1500}/>
         <Button className="mt-3" disabled={!concept || loading} onClick={submit}>
           {loading ? "Loading..." : "Get Explanation"}
         </Button>
