@@ -22,7 +22,7 @@ public class RateLimitConfig {
     // 20 requests per minute per user
     public Bucket resolveAiBucket(String userId) {
         return buckets.computeIfAbsent(
-                "ai:" + userId, k -> buildBucket(20, Duration.ofMinutes(1)));
+                "ai:" + userId, k -> buildBucket(10, Duration.ofMinutes(1)));
     }
 
     // Scraping endpoints — very expensive
