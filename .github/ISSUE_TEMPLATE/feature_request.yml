@@ -1,0 +1,52 @@
+name: 🚀 Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to make LearnAI better? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem or limitation you're facing.
+      placeholder: Currently, users can't see how long each concept will take...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to see built.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches you've thought about?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Learning DNA / Adaptive Engine
+        - Quiz / Practice Engine
+        - Spaced Repetition
+        - AI Mentor
+        - RAG / Content Pipeline
+        - Analytics Dashboard
+        - Gamification / XP
+        - Notifications
+        - API / Infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true

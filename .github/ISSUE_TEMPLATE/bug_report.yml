@@ -1,0 +1,59 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: When I call /api/quiz/start, I get a 500 error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Register a user via POST /api/auth/register
+        2. Complete onboarding
+        3. Call POST /api/quiz/start with body {...}
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error message
+      description: Paste any relevant Spring Boot logs or API response
+      render: shell
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java version
+      placeholder: Java 21
+
+  - type: input
+    id: spring-version
+    attributes:
+      label: Spring Boot version
+      placeholder: 3.5.x
