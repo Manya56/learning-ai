@@ -54,7 +54,9 @@ public class AuthController {
     @Operation(summary = "Logout current user")
     public ResponseEntity<ApiResponse<Void>> logout(
             @AuthenticationPrincipal User user) {
-        authService.logout(user.getEmail());
+        if (user != null) {
+            authService.logout(user.getEmail());
+        }
         return ResponseEntity.ok(ApiResponse.ok("Logged out successfully", null));
     }
 }

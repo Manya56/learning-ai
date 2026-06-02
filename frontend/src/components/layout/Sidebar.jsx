@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Map, BookOpen, Brain, User, CircleHelp, Code2, RefreshCcw, ChartNoAxesCombined, Trophy } from "lucide-react";
+import { logoutApi } from "../../api/auth";
 import { useAuthStore } from "../../store/authStore";
 import { useProfileStore } from "../../store/profileStore";
 
@@ -22,6 +23,18 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const revisionDueCount = useProfileStore((s) => s.revisionDueCount);
+
+  const handleLogout = async () => {
+    try {
+      await logoutApi();
+    } catch {
+      // Local logout should still complete if the server session is already expired.
+    } finally {
+      logout();
+      navigate("/login", { replace: true });
+    }
+  };
+
   return (
     <aside className="hidden w-60 border-r border-[var(--border)] bg-[var(--surface)] p-4 md:block">
       <h1 className="mb-6 text-xl font-semibold">LearnAI</h1>
@@ -49,10 +62,7 @@ export default function Sidebar() {
       </nav>
       <button
         className="mt-8 text-sm text-[var(--error)]"
-        onClick={() => {
-          logout();
-          navigate("/login", { replace: true });
-        }}
+        onClick={handleLogout}
       >
         Logout
       </button>
