@@ -75,6 +75,42 @@ class SpacedRepetitionServiceTest {
         assertThat(card.getRepetitions()).isEqualTo(0);
     }
 
+    // repetitions == 0 with passing quality → SM-2 hardcodes first interval to 1
+    @Test
+    void applySmTwo_firstRepetition_setsIntervalToOne() {
+        RevisionCard card = buildCard(2.5, 1, 0);
+        when(cardRepository.findByUserIdAndConceptName(USER_ID, CONCEPT))
+                .thenReturn(Optional.of(card));
+
+        service.completeRevision(USER_ID, CONCEPT, 3);
+
+        assertThat(card.getIntervalDays()).isEqualTo(1);
+    }
+
+    // repetitions == 1 with passing quality → SM-2 hardcodes second interval to 6
+    @Test
+    void applySmTwo_secondRepetition_setsIntervalToSix() {
+        RevisionCard card = buildCard(2.5, 1, 1);
+        when(cardRepository.findByUserIdAndConceptName(USER_ID, CONCEPT))
+                .thenReturn(Optional.of(card));
+
+        service.completeRevision(USER_ID, CONCEPT, 3);
+
+        assertThat(card.getIntervalDays()).isEqualTo(6);
+    }
+
+    // nextReviewAt must always be today + intervalDays after applySmTwo
+    @Test
+    void applySmTwo_setsNextReviewAtToTodayPlusInterval() {
+        RevisionCard card = buildCard(2.5, 1, 1);
+        when(cardRepository.findByUserIdAndConceptName(USER_ID, CONCEPT))
+                .thenReturn(Optional.of(card));
+
+        service.completeRevision(USER_ID, CONCEPT, 3);
+
+        assertThat(card.getNextReviewAt()).isEqualTo(LocalDate.now().plusDays(6));
+    }
+
     // SM-2 formula for q=5: newEF = EF + (0.1 - 0*(0.08 + 0*0.02)) = EF + 0.1
     @Test
     void applySmTwo_quality5_increasesEaseFactor() {
