@@ -23,14 +23,20 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (topicRepository.count() > 0) {
-            log.info("Content already seeded — skipping");
-            return;
-        }
-
-        log.info("Seeding DSA content...");
-        seedDSA();
+        seedCategoryIfAbsent("DSA", "DSA content", this::seedDSA);
+        seedCategoryIfAbsent("Finance", "Finance content", this::seedFinance);
+        seedCategoryIfAbsent("System Design", "System Design content", this::seedSystemDesign);
+        seedCategoryIfAbsent("Machine Learning", "Machine Learning content", this::seedMachineLearning);
         log.info("Seeding complete");
+    }
+
+    private void seedCategoryIfAbsent(String category, String label, Runnable seeder) {
+        if (topicRepository.findByCategoryOrderByOrderIndexAsc(category).isEmpty()) {
+            log.info("Seeding {} ...", label);
+            seeder.run();
+        } else {
+            log.info("{} already seeded — skipping", label);
+        }
     }
 
     private void seedDSA() {
@@ -211,6 +217,330 @@ public class DataSeeder implements CommandLineRunner {
                     "HARD", 3, 40, "backtracking,queens,pruning"),
             concept("Word Search", "DFS + backtracking on 2D grid",
                     "HARD", 4, 35, "backtracking,dfs,grid,string")
+        ));
+    }
+
+        private void seedFinance() {
+
+        // ── Topic 1: Financial Statements ─────────────────────────────────
+        Topic fs = save(Topic.builder()
+                .name("Financial Statements")
+                .category("Finance")
+                .description("Income statement, balance sheet, cash flow analysis")
+                .orderIndex(1)
+                .build());
+
+        saveConcepts(fs, List.of(
+            concept("Income Statement", "Revenue, expenses, net income breakdown",
+                    "EASY", 1, 20, "finance,income,statement"),
+            concept("Balance Sheet", "Assets, liabilities, shareholders equity",
+                    "EASY", 2, 20, "finance,balance,sheet"),
+            concept("Cash Flow Statement", "Operating, investing, financing activities",
+                    "MEDIUM", 3, 25, "finance,cashflow,statement"),
+            concept("Financial Ratios", "Liquidity, profitability, leverage ratios",
+                    "MEDIUM", 4, 30, "finance,ratios,analysis"),
+            concept("Earnings Quality", "Accruals, one-time items, red flags",
+                    "HARD", 5, 35, "finance,earnings,quality")
+        ));
+
+        // ── Topic 2: Valuation ────────────────────────────────────────────
+        Topic valuation = save(Topic.builder()
+                .name("Valuation")
+                .category("Finance")
+                .description("DCF, comparable companies, precedent transactions")
+                .orderIndex(2)
+                .build());
+
+        saveConcepts(valuation, List.of(
+            concept("Time Value of Money", "PV, FV, NPV, IRR concepts",
+                    "EASY", 1, 20, "finance,tvm,npv"),
+            concept("DCF Analysis", "Discounted cash flow valuation model",
+                    "MEDIUM", 2, 40, "finance,dcf,valuation"),
+            concept("Comparable Company Analysis", "EV/EBITDA, P/E multiples",
+                    "MEDIUM", 3, 35, "finance,comps,multiples"),
+            concept("Precedent Transactions", "M&A deal multiples and control premiums",
+                    "HARD", 4, 35, "finance,ma,transactions"),
+            concept("LBO Modeling", "Leveraged buyout returns analysis",
+                    "HARD", 5, 50, "finance,lbo,modeling")
+        ));
+
+        // ── Topic 3: Stock Market ─────────────────────────────────────────
+        Topic stock = save(Topic.builder()
+                .name("Stock Market")
+                .category("Finance")
+                .description("Equity markets, indices, market microstructure")
+                .orderIndex(3)
+                .build());
+
+        saveConcepts(stock, List.of(
+            concept("Market Basics", "Exchanges, brokers, order types",
+                    "EASY", 1, 15, "finance,stock,market"),
+            concept("Technical Analysis", "Charts, moving averages, RSI, MACD",
+                    "MEDIUM", 2, 35, "finance,technical,analysis"),
+            concept("Fundamental Analysis", "Intrinsic value and margin of safety",
+                    "MEDIUM", 3, 35, "finance,fundamental,analysis"),
+            concept("Market Efficiency", "EMH, alpha, anomalies",
+                    "MEDIUM", 4, 25, "finance,emh,efficiency"),
+            concept("Behavioral Finance", "Biases, heuristics, market psychology",
+                    "HARD", 5, 30, "finance,behavioral,psychology")
+        ));
+
+        // ── Topic 4: Options ──────────────────────────────────────────────
+        Topic options = save(Topic.builder()
+                .name("Options")
+                .category("Finance")
+                .description("Derivatives, pricing models, Greeks, strategies")
+                .orderIndex(4)
+                .build());
+
+        saveConcepts(options, List.of(
+            concept("Options Basics", "Calls, puts, strike, expiry, premium",
+                    "EASY", 1, 20, "finance,options,basics"),
+            concept("Option Payoff Diagrams", "Long/short call and put payoffs",
+                    "EASY", 2, 20, "finance,options,payoff"),
+            concept("Black-Scholes Model", "Option pricing formula and assumptions",
+                    "HARD", 3, 45, "finance,blackscholes,pricing"),
+            concept("The Greeks", "Delta, gamma, theta, vega, rho",
+                    "HARD", 4, 40, "finance,greeks,delta,gamma"),
+            concept("Options Strategies", "Spreads, straddles, iron condor",
+                    "HARD", 5, 40, "finance,strategies,spreads")
+        ));
+
+        // ── Topic 5: Portfolio Management ─────────────────────────────────
+        Topic portfolio = save(Topic.builder()
+                .name("Portfolio Management")
+                .category("Finance")
+                .description("Modern portfolio theory, risk, asset allocation")
+                .orderIndex(5)
+                .build());
+
+        saveConcepts(portfolio, List.of(
+            concept("Risk and Return", "Expected return, variance, standard deviation",
+                    "EASY", 1, 20, "finance,risk,return"),
+            concept("Diversification", "Correlation, covariance, efficient frontier",
+                    "MEDIUM", 2, 30, "finance,diversification,correlation"),
+            concept("CAPM", "Beta, market risk premium, SML",
+                    "MEDIUM", 3, 30, "finance,capm,beta"),
+            concept("Factor Models", "Fama-French 3 and 5 factor models",
+                    "HARD", 4, 40, "finance,factor,fama-french"),
+            concept("Portfolio Optimization", "Mean-variance optimization, Sharpe ratio",
+                    "HARD", 5, 45, "finance,optimization,sharpe")
+        ));
+    }
+
+    private void seedSystemDesign() {
+
+        // ── Topic 1: Scalability ──────────────────────────────────────────
+        Topic scalability = save(Topic.builder()
+                .name("Scalability")
+                .category("System Design")
+                .description("Horizontal vs vertical scaling, stateless design, CAP theorem")
+                .orderIndex(1)
+                .build());
+
+        saveConcepts(scalability, List.of(
+            concept("Horizontal vs Vertical Scaling", "Scale-out vs scale-up tradeoffs",
+                    "EASY", 1, 20, "systemdesign,scaling,horizontal"),
+            concept("CAP Theorem", "Consistency, availability, partition tolerance",
+                    "MEDIUM", 2, 25, "systemdesign,cap,distributed"),
+            concept("Stateless Architecture", "Designing stateless services for scale",
+                    "MEDIUM", 3, 25, "systemdesign,stateless,scalability"),
+            concept("Rate Limiting", "Token bucket, leaky bucket algorithms",
+                    "MEDIUM", 4, 30, "systemdesign,ratelimit,throttle"),
+            concept("Consistent Hashing", "Distributed key routing and node addition",
+                    "HARD", 5, 40, "systemdesign,hashing,distributed")
+        ));
+
+        // ── Topic 2: Databases ────────────────────────────────────────────
+        Topic databases = save(Topic.builder()
+                .name("Databases")
+                .category("System Design")
+                .description("SQL vs NoSQL, replication, sharding, indexing")
+                .orderIndex(2)
+                .build());
+
+        saveConcepts(databases, List.of(
+            concept("SQL vs NoSQL", "Relational vs document, key-value, column stores",
+                    "EASY", 1, 20, "systemdesign,sql,nosql"),
+            concept("Indexing", "B-tree, hash indexes, composite indexes",
+                    "MEDIUM", 2, 30, "systemdesign,indexing,btree"),
+            concept("Database Replication", "Master-slave, multi-master, read replicas",
+                    "MEDIUM", 3, 35, "systemdesign,replication,database"),
+            concept("Database Sharding", "Horizontal partitioning strategies",
+                    "HARD", 4, 40, "systemdesign,sharding,partition"),
+            concept("ACID vs BASE", "Transaction guarantees and eventual consistency",
+                    "HARD", 5, 35, "systemdesign,acid,base,consistency")
+        ));
+
+        // ── Topic 3: Caching ──────────────────────────────────────────────
+        Topic caching = save(Topic.builder()
+                .name("Caching")
+                .category("System Design")
+                .description("Cache strategies, eviction policies, distributed caches")
+                .orderIndex(3)
+                .build());
+
+        saveConcepts(caching, List.of(
+            concept("Cache Basics", "Cache hit, miss, TTL, warm-up",
+                    "EASY", 1, 15, "systemdesign,cache,basics"),
+            concept("Eviction Policies", "LRU, LFU, FIFO cache eviction",
+                    "MEDIUM", 2, 25, "systemdesign,cache,lru,eviction"),
+            concept("Cache Strategies", "Cache-aside, write-through, write-behind",
+                    "MEDIUM", 3, 30, "systemdesign,cache,strategy"),
+            concept("Distributed Caching", "Redis, Memcached, cluster mode",
+                    "MEDIUM", 4, 35, "systemdesign,redis,distributed,cache"),
+            concept("Cache Stampede and Thundering Herd", "Prevention with locking and jitter",
+                    "HARD", 5, 35, "systemdesign,cache,stampede,thundering")
+        ));
+
+        // ── Topic 4: Load Balancing ───────────────────────────────────────
+        Topic lb = save(Topic.builder()
+                .name("Load Balancing")
+                .category("System Design")
+                .description("Traffic distribution, algorithms, health checks")
+                .orderIndex(4)
+                .build());
+
+        saveConcepts(lb, List.of(
+            concept("Load Balancer Basics", "L4 vs L7, reverse proxy, VIP",
+                    "EASY", 1, 20, "systemdesign,loadbalancer,basics"),
+            concept("Load Balancing Algorithms", "Round robin, least connections, IP hash",
+                    "MEDIUM", 2, 25, "systemdesign,loadbalancer,roundrobin"),
+            concept("Health Checks", "Active and passive health monitoring",
+                    "MEDIUM", 3, 20, "systemdesign,healthcheck,loadbalancer"),
+            concept("Global Load Balancing", "GeoDNS, anycast, CDN edge routing",
+                    "HARD", 4, 35, "systemdesign,global,geodns,cdn"),
+            concept("Service Mesh", "Sidecar proxy, Istio, mTLS",
+                    "HARD", 5, 40, "systemdesign,servicemesh,istio,sidecar")
+        ));
+
+        // ── Topic 5: Message Queues ───────────────────────────────────────
+        Topic mq = save(Topic.builder()
+                .name("Message Queues")
+                .category("System Design")
+                .description("Async communication, Kafka, RabbitMQ, event-driven design")
+                .orderIndex(5)
+                .build());
+
+        saveConcepts(mq, List.of(
+            concept("Message Queue Basics", "Producer, consumer, broker, topics",
+                    "EASY", 1, 20, "systemdesign,mq,basics"),
+            concept("Kafka Architecture", "Partitions, offsets, consumer groups",
+                    "MEDIUM", 2, 40, "systemdesign,kafka,partitions"),
+            concept("At-Least-Once vs Exactly-Once", "Delivery guarantees and idempotency",
+                    "MEDIUM", 3, 30, "systemdesign,delivery,idempotency"),
+            concept("Dead Letter Queues", "Error handling and retry strategies",
+                    "MEDIUM", 4, 25, "systemdesign,dlq,retry"),
+            concept("Event-Driven Architecture", "CQRS, event sourcing, sagas",
+                    "HARD", 5, 45, "systemdesign,eventdriven,cqrs,saga")
+        ));
+    }
+
+    private void seedMachineLearning() {
+
+        // ── Topic 1: Linear Regression ────────────────────────────────────
+        Topic lr = save(Topic.builder()
+                .name("Linear Regression")
+                .category("Machine Learning")
+                .description("Supervised learning, gradient descent, regularization")
+                .orderIndex(1)
+                .build());
+
+        saveConcepts(lr, List.of(
+            concept("Simple Linear Regression", "Slope, intercept, OLS estimation",
+                    "EASY", 1, 20, "ml,regression,linear"),
+            concept("Multiple Linear Regression", "Multiple features, multicollinearity",
+                    "EASY", 2, 25, "ml,regression,multiple"),
+            concept("Gradient Descent", "Batch, stochastic, mini-batch variants",
+                    "MEDIUM", 3, 30, "ml,gradient,descent,optimization"),
+            concept("Regularization", "L1 (Lasso), L2 (Ridge), ElasticNet",
+                    "MEDIUM", 4, 30, "ml,regularization,lasso,ridge"),
+            concept("Evaluation Metrics", "MSE, RMSE, MAE, R-squared",
+                    "EASY", 5, 20, "ml,metrics,rmse,r2")
+        ));
+
+        // ── Topic 2: Neural Networks ──────────────────────────────────────
+        Topic nn = save(Topic.builder()
+                .name("Neural Networks")
+                .category("Machine Learning")
+                .description("Perceptrons, backpropagation, activation functions")
+                .orderIndex(2)
+                .build());
+
+        saveConcepts(nn, List.of(
+            concept("Perceptron and MLP", "Neurons, layers, forward pass",
+                    "EASY", 1, 25, "ml,neural,perceptron,mlp"),
+            concept("Activation Functions", "ReLU, sigmoid, tanh, softmax",
+                    "EASY", 2, 20, "ml,activation,relu,sigmoid"),
+            concept("Backpropagation", "Chain rule, weight update, vanishing gradient",
+                    "MEDIUM", 3, 40, "ml,backprop,gradient,chainrule"),
+            concept("Optimizers", "Adam, RMSProp, momentum, learning rate schedules",
+                    "MEDIUM", 4, 35, "ml,optimizer,adam,rmsprop"),
+            concept("Overfitting and Regularization", "Dropout, batch norm, early stopping",
+                    "MEDIUM", 5, 35, "ml,overfitting,dropout,batchnorm")
+        ));
+
+        // ── Topic 3: CNN ──────────────────────────────────────────────────
+        Topic cnn = save(Topic.builder()
+                .name("CNN")
+                .category("Machine Learning")
+                .description("Convolutional networks for image recognition")
+                .orderIndex(3)
+                .build());
+
+        saveConcepts(cnn, List.of(
+            concept("Convolution Operation", "Filters, feature maps, stride, padding",
+                    "EASY", 1, 25, "ml,cnn,convolution,filter"),
+            concept("Pooling Layers", "Max pooling, average pooling, spatial reduction",
+                    "EASY", 2, 20, "ml,cnn,pooling,maxpool"),
+            concept("CNN Architectures", "LeNet, AlexNet, VGG, ResNet, Inception",
+                    "MEDIUM", 3, 35, "ml,cnn,resnet,architecture"),
+            concept("Transfer Learning", "Fine-tuning pretrained models",
+                    "MEDIUM", 4, 35, "ml,transfer,pretrained,finetuning"),
+            concept("Object Detection", "YOLO, SSD, Faster R-CNN overview",
+                    "HARD", 5, 45, "ml,cnn,detection,yolo,rcnn")
+        ));
+
+        // ── Topic 4: NLP ──────────────────────────────────────────────────
+        Topic nlp = save(Topic.builder()
+                .name("NLP")
+                .category("Machine Learning")
+                .description("Text processing, embeddings, transformers, LLMs")
+                .orderIndex(4)
+                .build());
+
+        saveConcepts(nlp, List.of(
+            concept("Text Preprocessing", "Tokenization, stemming, lemmatization, TF-IDF",
+                    "EASY", 1, 20, "ml,nlp,tokenization,tfidf"),
+            concept("Word Embeddings", "Word2Vec, GloVe, FastText",
+                    "MEDIUM", 2, 30, "ml,nlp,word2vec,embeddings"),
+            concept("Recurrent Networks", "RNN, LSTM, GRU for sequence modeling",
+                    "MEDIUM", 3, 40, "ml,nlp,rnn,lstm,gru"),
+            concept("Attention Mechanism", "Self-attention, multi-head attention",
+                    "HARD", 4, 40, "ml,nlp,attention,transformer"),
+            concept("Transformers and LLMs", "BERT, GPT architecture and fine-tuning",
+                    "HARD", 5, 50, "ml,nlp,transformer,bert,gpt")
+        ));
+
+        // ── Topic 5: Reinforcement Learning ──────────────────────────────
+        Topic rl = save(Topic.builder()
+                .name("Reinforcement Learning")
+                .category("Machine Learning")
+                .description("Agents, rewards, policies, Q-learning, policy gradients")
+                .orderIndex(5)
+                .build());
+
+        saveConcepts(rl, List.of(
+            concept("RL Basics", "Agent, environment, state, action, reward",
+                    "EASY", 1, 20, "ml,rl,basics,markov"),
+            concept("Markov Decision Process", "MDP formulation, Bellman equation",
+                    "MEDIUM", 2, 30, "ml,rl,mdp,bellman"),
+            concept("Q-Learning", "Tabular Q-table, epsilon-greedy exploration",
+                    "MEDIUM", 3, 35, "ml,rl,qlearning,exploration"),
+            concept("Deep Q-Network", "DQN, experience replay, target network",
+                    "HARD", 4, 45, "ml,rl,dqn,deeprl"),
+            concept("Policy Gradient Methods", "REINFORCE, PPO, actor-critic",
+                    "HARD", 5, 50, "ml,rl,policy,ppo,actorcritic")
         ));
     }
 
