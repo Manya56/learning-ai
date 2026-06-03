@@ -1,0 +1,1353 @@
+{
+  "info": {
+    "_postman_id": "learningai-api-collection-v1",
+    "name": "LearnAI API",
+    "description": "Complete REST API collection for the LearnAI backend — 16 controllers, 63+ endpoints.\n\n**Quick Setup**\n1. Start the backend: `./gradlew bootRun`\n2. Run **POST Register** or **POST Login** in the Auth folder\n3. Tokens are auto-saved — all protected endpoints work immediately\n\n**Collection Variables**\n- `base_url` — API server (default `http://localhost:8080`)\n- `access_token` — JWT Bearer token (auto-set after login, expires in 24h)\n- `refresh_token` — Refresh token (auto-set after login, valid 7 days)\n\nAll protected endpoints inherit Bearer auth from the collection level.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "description": "LearnAI API base URL",
+      "type": "default"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "description": "JWT access token — auto-set after login or register",
+      "type": "secret"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "description": "JWT refresh token — auto-set after login or register",
+      "type": "secret"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔓 Auth",
+      "description": "Public authentication endpoints — no Bearer token required.",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "if (resp.success && resp.data) {",
+                  "    pm.collectionVariables.set('access_token', resp.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', resp.data.refreshToken);",
+                  "    console.log('✅ Tokens stored! Access token expires in: ' + resp.data.accessTokenExpiresIn + 'ms');",
+                  "} else {",
+                  "    console.error('❌ Registration failed:', resp.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Alice Johnson\",\n  \"email\": \"alice@example.com\",\n  \"password\": \"SecurePass123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new user account. Tokens are auto-saved to collection variables on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "if (resp.success && resp.data) {",
+                  "    pm.collectionVariables.set('access_token', resp.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', resp.data.refreshToken);",
+                  "    console.log('✅ Logged in! Access token expires in: ' + resp.data.accessTokenExpiresIn + 'ms');",
+                  "} else {",
+                  "    console.error('❌ Login failed:', resp.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"password\": \"SecurePass123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticate with email and password. `access_token` and `refresh_token` are auto-saved to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "if (resp.success && resp.data) {",
+                  "    pm.collectionVariables.set('access_token', resp.data.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', resp.data.refreshToken);",
+                  "    console.log('✅ Tokens refreshed!');",
+                  "} else {",
+                  "    console.error('❌ Refresh failed:', resp.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Use the refresh token to obtain a new access token. New tokens are auto-saved."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout the current user. Requires Bearer token. Invalidates the refresh token server-side."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🏥 Health",
+      "description": "Public health check — returns DB and Redis connectivity status.",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health", "health"]
+            },
+            "description": "Returns the health status of the API, including database and Redis connectivity."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📋 Onboarding",
+      "description": "User onboarding flow — run these in order for a new account before using other features.",
+      "item": [
+        {
+          "name": "Start Onboarding Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goal\": \"DSA\",\n  \"goalDescription\": \"Prepare for software engineering technical interviews\",\n  \"preferredLanguage\": \"Java\",\n  \"priorKnowledgeLevel\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/onboarding/quiz",
+              "host": ["{{base_url}}"],
+              "path": ["api", "onboarding", "quiz"]
+            },
+            "description": "Generate a knowledge assessment quiz. `priorKnowledgeLevel`: 1=Beginner, 2=Intermediate, 3=Advanced."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Onboarding",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onboarding\": {\n    \"goal\": \"DSA\",\n    \"goalDescription\": \"Prepare for software engineering technical interviews\",\n    \"preferredLanguage\": \"Java\",\n    \"priorKnowledgeLevel\": 2\n  },\n  \"quizAnswers\": {\n    \"goal\": \"DSA\",\n    \"answers\": [0, 2, 1, 3, 0],\n    \"correctAnswers\": [0, 2, 1, 3, 1]\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/onboarding/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "onboarding", "complete"]
+            },
+            "description": "Submit quiz answers and finalize onboarding. Creates the user's Learning DNA profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Onboarding Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/onboarding/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "onboarding", "profile"]
+            },
+            "description": "Retrieve the current user's learning profile setup from onboarding."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👤 Profile",
+      "description": "Learning DNA profile — the user's adaptive learning fingerprint.",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile"]
+            },
+            "description": "Get the full Learning DNA profile for the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/profile/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "stats"]
+            },
+            "description": "Get profile statistics and learning progress summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferredLanguage\": \"Python\",\n  \"goalDescription\": \"Master system design and algorithms for FAANG interviews\",\n  \"learningStyle\": \"VISUAL\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile"]
+            },
+            "description": "Update profile preferences. All fields are optional. `learningStyle`: VISUAL, READING, KINESTHETIC, AUDITORY."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Inferred Learning Style",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/profile/style",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "style"]
+            },
+            "description": "Infer the user's learning style from their behavioural patterns."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Profile History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/profile/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "history"]
+            },
+            "description": "Get the history of Learning DNA changes for the user."
+          },
+          "response": []
+        },
+        {
+          "name": "Record Practice Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"concept\": \"Binary Search\",\n  \"correct\": true,\n  \"timeTakenMs\": 45000,\n  \"hintUsed\": false,\n  \"codingQuestion\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/profile/attempt",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "attempt"]
+            },
+            "description": "Record a practice attempt to update the Learning DNA. Usually called automatically by the Practice/Quiz services."
+          },
+          "response": []
+        },
+        {
+          "name": "Record Explanation Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/profile/explanation-read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "explanation-read"]
+            },
+            "description": "Signal that the user read an explanation — updates learning style inference."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🗺️ Roadmap",
+      "description": "Personalised learning roadmap — tracks overall progress and suggests next steps.",
+      "item": [
+        {
+          "name": "Get Full Roadmap",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/roadmap",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap"]
+            },
+            "description": "Retrieve the full learning roadmap with all topics and overall progress percentage."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Topic",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/current-topic",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "current-topic"]
+            },
+            "description": "Get the current active topic, the next concept to study, and which API call to make."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Daily Plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/daily-plan",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "daily-plan"]
+            },
+            "description": "Get today's personalised study plan with exact API calls to make."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Concept",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conceptName\": \"Binary Search\",\n  \"activityType\": \"QUIZ\",\n  \"score\": 0.85\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/complete-concept",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "complete-concept"]
+            },
+            "description": "Mark a concept as completed. `activityType`: QUIZ or PRACTICE. `score`: 0.0–1.0."
+          },
+          "response": []
+        },
+        {
+          "name": "Initialize Roadmap",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/initialize",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "initialize"]
+            },
+            "description": "Manually initialise or reset the user's learning roadmap based on their current profile."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📚 Content",
+      "description": "Browse topics and concepts in the knowledge base.",
+      "item": [
+        {
+          "name": "Get Topics (User Goal)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/topics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "topics"]
+            },
+            "description": "Get all topics relevant to the authenticated user's learning goal."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Topics by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/topics/category/:category",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "topics", "category", ":category"],
+              "variable": [
+                {
+                  "key": "category",
+                  "value": "DSA",
+                  "description": "Category name, e.g. DSA, Finance, Music"
+                }
+              ]
+            },
+            "description": "Get all topics within a specific category (e.g. DSA, Finance, Music)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Topic by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/topics/:topicId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "topics", ":topicId"],
+              "variable": [
+                {
+                  "key": "topicId",
+                  "value": "00000000-0000-0000-0000-000000000001",
+                  "description": "UUID of the topic"
+                }
+              ]
+            },
+            "description": "Get a single topic with all its concepts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Concepts by Difficulty",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/topics/:topicId/concepts?difficulty=MEDIUM",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "topics", ":topicId", "concepts"],
+              "variable": [
+                {
+                  "key": "topicId",
+                  "value": "00000000-0000-0000-0000-000000000001",
+                  "description": "UUID of the topic"
+                }
+              ],
+              "query": [
+                {
+                  "key": "difficulty",
+                  "value": "MEDIUM",
+                  "description": "EASY | MEDIUM | HARD"
+                }
+              ]
+            },
+            "description": "Get concepts within a topic filtered by difficulty. Values: EASY, MEDIUM, HARD."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Concept by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/concepts/:conceptId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "concepts", ":conceptId"],
+              "variable": [
+                {
+                  "key": "conceptId",
+                  "value": "00000000-0000-0000-0000-000000000002",
+                  "description": "UUID of the concept"
+                }
+              ]
+            },
+            "description": "Get a single concept with its full details."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Concepts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/content/concepts/search?query=binary+search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "content", "concepts", "search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "binary search",
+                  "description": "Search term to match against concept names"
+                }
+              ]
+            },
+            "description": "Search concepts by name using a text query."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🤖 Learn",
+      "description": "RAG-powered concept explanations tailored to the user's Learning DNA.",
+      "item": [
+        {
+          "name": "Get Explanation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conceptName\": \"Binary Search\",\n  \"question\": \"How does binary search work and when should I use it?\",\n  \"language\": \"Java\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/learn/explain",
+              "host": ["{{base_url}}"],
+              "path": ["api", "learn", "explain"]
+            },
+            "description": "Get a DNA-aware RAG explanation for a concept. Returns explanation text with source references. `language` is optional."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💬 Mentor",
+      "description": "AI Mentor 'Aria' — context-aware conversational tutor.",
+      "item": [
+        {
+          "name": "Chat with Aria",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I'm struggling with dynamic programming. Can you give me a simple example?\",\n  \"personality\": \"ENCOURAGING\",\n  \"newSession\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/mentor/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "mentor", "chat"]
+            },
+            "description": "Send a message to the AI mentor Aria. Set `newSession: true` to start a fresh conversation. `personality` is optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Mentor History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/mentor/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "mentor", "history"]
+            },
+            "description": "Retrieve the last 10 mentor chat sessions."
+          },
+          "response": []
+        },
+        {
+          "name": "Clear Mentor Context",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/mentor/context",
+              "host": ["{{base_url}}"],
+              "path": ["api", "mentor", "context"]
+            },
+            "description": "Clear the current conversation context so Aria starts fresh."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💻 Practice",
+      "description": "AI-generated coding, maths, and written practice problems with automated evaluation.",
+      "item": [
+        {
+          "name": "Generate Problem",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conceptName\": \"Binary Search\",\n  \"topicGoal\": \"DSA\",\n  \"difficulty\": \"MEDIUM\",\n  \"language\": \"Java\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/practice/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "practice", "generate"]
+            },
+            "description": "Generate a practice problem. `difficulty`: EASY, MEDIUM, HARD. `language` and `topicGoal` are optional."
+          },
+          "response": []
+        },
+        {
+          "name": "Evaluate Submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"problemStatement\": \"Given a sorted array, implement binary search to find a target element.\",\n  \"userSubmission\": \"public int search(int[] nums, int target) {\\n  int left = 0, right = nums.length - 1;\\n  while (left <= right) {\\n    int mid = left + (right - left) / 2;\\n    if (nums[mid] == target) return mid;\\n    if (nums[mid] < target) left = mid + 1;\\n    else right = mid - 1;\\n  }\\n  return -1;\\n}\",\n  \"conceptName\": \"Binary Search\",\n  \"problemType\": \"CODING\",\n  \"language\": \"Java\",\n  \"timeTakenMs\": 300000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/practice/evaluate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "practice", "evaluate"]
+            },
+            "description": "Submit and evaluate a solution. Updates the user's Learning DNA. `problemType`: CODING, WRITTEN, MATH."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Practice History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/practice/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "practice", "history"]
+            },
+            "description": "Get the last 10 practice attempts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get History by Concept",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/practice/history/:conceptName",
+              "host": ["{{base_url}}"],
+              "path": ["api", "practice", "history", ":conceptName"],
+              "variable": [
+                {
+                  "key": "conceptName",
+                  "value": "Binary Search",
+                  "description": "Name of the concept"
+                }
+              ]
+            },
+            "description": "Get all practice attempts for a specific concept."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attempt Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/practice/attempt/:attemptId",
+              "host": ["{{base_url}}"],
+              "path": ["api", "practice", "attempt", ":attemptId"],
+              "variable": [
+                {
+                  "key": "attemptId",
+                  "value": "00000000-0000-0000-0000-000000000003",
+                  "description": "UUID of the practice attempt"
+                }
+              ]
+            },
+            "description": "Get detailed results for a specific practice attempt."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🧠 Quiz",
+      "description": "Adaptive quiz sessions — generate questions, submit answers, get hints, and review results.",
+      "item": [
+        {
+          "name": "Start Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conceptName\": \"Binary Search\",\n  \"topicGoal\": \"DSA\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/quiz/start",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "start"]
+            },
+            "description": "Start a new quiz session. Returns a `sessionId` needed for subsequent calls."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIndex\": 0,\n  \"selectedAnswerIndex\": 2,\n  \"timeTakenMs\": 15000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/quiz/:sessionId/answer",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", ":sessionId", "answer"],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "00000000-0000-0000-0000-000000000004",
+                  "description": "UUID of the quiz session from Start Quiz"
+                }
+              ]
+            },
+            "description": "Submit an answer for a question. `questionIndex` is 0-based. `selectedAnswerIndex` is 0-based."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/:sessionId/hint?questionIndex=0&hintNumber=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", ":sessionId", "hint"],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "00000000-0000-0000-0000-000000000004",
+                  "description": "UUID of the quiz session"
+                }
+              ],
+              "query": [
+                {
+                  "key": "questionIndex",
+                  "value": "0",
+                  "description": "0-based index of the question"
+                },
+                {
+                  "key": "hintNumber",
+                  "value": "1",
+                  "description": "Hint level 1–3 (each progressively more revealing)"
+                }
+              ]
+            },
+            "description": "Get a progressive hint for a question. Call up to 3 times for increasingly detailed hints."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Quiz Session",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/:sessionId/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", ":sessionId", "complete"],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "00000000-0000-0000-0000-000000000004",
+                  "description": "UUID of the quiz session"
+                }
+              ]
+            },
+            "description": "Finalise the quiz session. Returns a results summary and triggers Learning DNA update."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Quiz History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", "history"]
+            },
+            "description": "Get the last 10 quiz sessions."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/quiz/:sessionId/details",
+              "host": ["{{base_url}}"],
+              "path": ["api", "quiz", ":sessionId", "details"],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "00000000-0000-0000-0000-000000000004",
+                  "description": "UUID of the quiz session"
+                }
+              ]
+            },
+            "description": "Get detailed results for a completed quiz session, including all questions and answers."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔄 Revision",
+      "description": "Spaced repetition system (SM-2 algorithm) — review cards based on memory retention.",
+      "item": [
+        {
+          "name": "Get Due Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/revision/due",
+              "host": ["{{base_url}}"],
+              "path": ["api", "revision", "due"]
+            },
+            "description": "Get today's due revision cards plus a 7-day forecast of upcoming reviews."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Revision",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conceptName\": \"Binary Search\",\n  \"quality\": 4\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/revision/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "revision", "complete"]
+            },
+            "description": "Record a revision result. `quality`: 0=Blackout, 1=Incorrect+hard, 2=Incorrect+easy, 3=Correct+hard, 4=Correct+hesitation, 5=Perfect."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/revision/all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "revision", "all"]
+            },
+            "description": "Get all revision cards with their current retention scores and next due dates."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Analytics",
+      "description": "Learning behaviour analytics and performance insights.",
+      "item": [
+        {
+          "name": "Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/overview",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "overview"]
+            },
+            "description": "Get an overview: streak, accuracy, total study time, and due revisions count."
+          },
+          "response": []
+        },
+        {
+          "name": "Activity Heatmap",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/heatmap",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "heatmap"]
+            },
+            "description": "Get activity heatmap data for the last 90 days (GitHub-style)."
+          },
+          "response": []
+        },
+        {
+          "name": "Difficulty History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/difficulty-history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "difficulty-history"]
+            },
+            "description": "Get how the user's difficulty level has changed over time."
+          },
+          "response": []
+        },
+        {
+          "name": "Learning Style Evolution",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/style-evolution",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "style-evolution"]
+            },
+            "description": "Get how the user's inferred learning style has shifted over time."
+          },
+          "response": []
+        },
+        {
+          "name": "Weak Concepts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/weak-concepts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "weak-concepts"]
+            },
+            "description": "Get weak and strong concepts ranked by performance score."
+          },
+          "response": []
+        },
+        {
+          "name": "Weekly Performance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/weekly",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "weekly"]
+            },
+            "description": "Get weekly performance breakdown for the last 4 weeks."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🏆 Leaderboard",
+      "description": "XP-based gamification leaderboards.",
+      "item": [
+        {
+          "name": "Weekly Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/leaderboard/weekly",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaderboard", "weekly"]
+            },
+            "description": "Get the top 20 users by XP this week. Your rank is pinned at the bottom."
+          },
+          "response": []
+        },
+        {
+          "name": "All-Time Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/leaderboard/all-time",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaderboard", "all-time"]
+            },
+            "description": "Get the top 20 users by all-time XP. Your rank is pinned at the bottom."
+          },
+          "response": []
+        },
+        {
+          "name": "My XP Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/leaderboard/my-xp",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaderboard", "my-xp"]
+            },
+            "description": "Get your personal XP summary: weekly XP, all-time XP, current rank, and recent XP events."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notifications",
+      "description": "Email notification testing endpoints.",
+      "item": [
+        {
+          "name": "Test Revision Reminder Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/test/revision",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "test", "revision"]
+            },
+            "description": "Send a test revision reminder email to the authenticated user's email address."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Streak Reminder Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/test/streak",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "test", "streak"]
+            },
+            "description": "Send a test streak reminder email to the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Motivation Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/test/motivation",
+              "host": ["{{base_url}}"],
+              "path": ["api", "notifications", "test", "motivation"]
+            },
+            "description": "Send a test motivational email to the authenticated user."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔍 Search",
+      "description": "Semantic search over the scraped knowledge base using embeddings.",
+      "item": [
+        {
+          "name": "Semantic Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/search/semantic?query=how+does+quicksort+work&conceptTag=DSA&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "search", "semantic"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "how does quicksort work",
+                  "description": "Natural language search query (required)"
+                },
+                {
+                  "key": "conceptTag",
+                  "value": "DSA",
+                  "description": "Optional topic tag to scope the search; defaults to user's goal"
+                },
+                {
+                  "key": "limit",
+                  "value": "5",
+                  "description": "Number of results to return (default: 5)"
+                }
+              ]
+            },
+            "description": "Vector similarity search over scraped content. Returns the most semantically relevant passages."
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Embedding",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/search/embed/trigger",
+              "host": ["{{base_url}}"],
+              "path": ["api", "search", "embed", "trigger"]
+            },
+            "description": "Manually trigger the embedding pipeline to process any pending scraped content."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔧 Admin",
+      "description": "Admin-only endpoints for content scraping and management. Requires admin role.",
+      "item": [
+        {
+          "name": "Scrape URL",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/scrape?url=https://en.wikipedia.org/wiki/Binary_search_algorithm&conceptTag=DSA&conceptName=Binary+Search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "scrape"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "https://en.wikipedia.org/wiki/Binary_search_algorithm",
+                  "description": "URL to scrape (required)"
+                },
+                {
+                  "key": "conceptTag",
+                  "value": "DSA",
+                  "description": "Topic tag to associate the scraped content with (required)"
+                },
+                {
+                  "key": "conceptName",
+                  "value": "Binary Search",
+                  "description": "Concept name label (optional)"
+                }
+              ]
+            },
+            "description": "Manually scrape a URL and tag the content to a concept. Admins only."
+          },
+          "response": []
+        },
+        {
+          "name": "Scrape by Topic Goal",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/scrape/topic?topicGoal=DSA&conceptName=Merge+Sort&question=How+does+merge+sort+work",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "scrape", "topic"],
+              "query": [
+                {
+                  "key": "topicGoal",
+                  "value": "DSA",
+                  "description": "Learning goal / topic area (required)"
+                },
+                {
+                  "key": "conceptName",
+                  "value": "Merge Sort",
+                  "description": "Concept to find URLs for (required)"
+                },
+                {
+                  "key": "question",
+                  "value": "How does merge sort work",
+                  "description": "Optional question to guide URL discovery via Groq"
+                }
+              ]
+            },
+            "description": "Use the Groq LLM to suggest relevant URLs for a concept, then scrape them automatically."
+          },
+          "response": []
+        },
+        {
+          "name": "List Scraped Content",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/content?conceptTag=DSA",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "content"],
+              "query": [
+                {
+                  "key": "conceptTag",
+                  "value": "DSA",
+                  "description": "Topic tag to filter scraped content (required)"
+                }
+              ]
+            },
+            "description": "List all scraped content pages for a given concept tag."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Content Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/content/stats?conceptTag=DSA",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "content", "stats"],
+              "query": [
+                {
+                  "key": "conceptTag",
+                  "value": "DSA",
+                  "description": "Topic tag to get stats for (required)"
+                }
+              ]
+            },
+            "description": "Get stats for a concept tag: totalPages, unembedded count, readyForRag count."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Content",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/content/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "content", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "00000000-0000-0000-0000-000000000005",
+                  "description": "UUID of the scraped content to delete"
+                }
+              ]
+            },
+            "description": "Delete a scraped content page and its associated embeddings."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
