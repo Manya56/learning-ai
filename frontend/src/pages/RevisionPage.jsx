@@ -1,28 +1,43 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { motion } from "framer-motion";
 import { completeRevisionApi, getRevisionAllApi, getRevisionDueApi } from "../api/revision";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import Icon from "../components/ui/Icon";
+import WizardStepHeader from "../components/ui/WizardStepHeader";
+import EmptyState from "../components/ui/EmptyState";
+
+const QUALITIES = [
+  { quality: 0, icon: "sentiment_very_dissatisfied" },
+  { quality: 2, icon: "sentiment_dissatisfied" },
+  { quality: 3, icon: "sentiment_neutral" },
+  { quality: 4, icon: "sentiment_satisfied" },
+  { quality: 5, icon: "sentiment_very_satisfied" },
+];
+
+const Tile = ({ icon, value, label, fill = 0 }) => (
+  <div className="rounded-2xl bg-[var(--surface-2)] p-4">
+    <div className="flex items-center gap-1.5">
+      <Icon name={icon} size={18} fill={fill} className="text-[var(--accent)]" />
+      <span className="text-2xl font-extrabold text-[var(--text)]">{value ?? 0}</span>
+    </div>
+    <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
+  </div>
+);
 
 export default function RevisionPage() {
+  const navigate = useNavigate();
+  const { concept, query } = useOutletContext() || {};
   const [stats, setStats] = useState(null);
   const [allCards, setAllCards] = useState([]);
   const [tab, setTab] = useState("due");
   const [completingCards, setCompletingCards] = useState([]);
 
   useEffect(() => {
-    getRevisionDueApi()
-      .then((data) => {
-        setStats(data);
-      })
-      .catch(() => setStats(null));
-
+    getRevisionDueApi().then(setStats).catch(() => setStats(null));
     getRevisionAllApi()
-      .then((d) => {
-        const data = Array.isArray(d) ? d : d?.cards || d?.revisionCards || [];
-        setAllCards(data);
-      })
+      .then((d) => setAllCards(Array.isArray(d) ? d : d?.cards || d?.revisionCards || []))
       .catch(() => setAllCards([]));
   }, []);
 
@@ -38,206 +53,182 @@ export default function RevisionPage() {
     setCompletingCards((prev) => [...prev, card.conceptName]);
     try {
       await completeRevisionApi({ conceptName: card.conceptName, quality });
-      setStats({
-        ...stats,
-        dueCards: stats.dueCards.filter((c) => c.conceptName !== card.conceptName),
-        dueToday: Math.max(0, (stats.dueToday || 1) - 1),
-      });
+      setStats((s) => ({
+        ...s,
+        dueCards: (s?.dueCards || []).filter((c) => c.conceptName !== card.conceptName),
+        dueToday: Math.max(0, (s?.dueToday || 1) - 1),
+      }));
     } finally {
       setCompletingCards((prev) => prev.filter((id) => id !== card.conceptName));
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Stats Overview */}
-      {stats && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 md:grid-cols-4"
-        >
-          <Card className="bg-gradient-to-r from-blue-500/10 to-blue-500/5">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-400">{stats.dueToday}</div>
-              <div className="text-sm text-[var(--text-muted)]">Due Today</div>
-            </div>
-          </Card>
-          <Card className="bg-gradient-to-r from-green-500/10 to-green-500/5">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-400">{stats.masteredCards}</div>
-              <div className="text-sm text-[var(--text-muted)]">Mastered</div>
-            </div>
-          </Card>
-          <Card className="bg-gradient-to-r from-orange-500/10 to-orange-500/5">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-400">{stats.overdueCards}</div>
-              <div className="text-sm text-[var(--text-muted)]">Overdue</div>
-            </div>
-          </Card>
-          <Card className="bg-gradient-to-r from-purple-500/10 to-purple-500/5">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-400">{stats.totalCards}</div>
-              <div className="text-sm text-[var(--text-muted)]">Total Cards</div>
-            </div>
-          </Card>
-        </motion.div>
-      )}
+    <div className="space-y-5">
+      <WizardStepHeader concept={concept} showSteps={false} />
 
-      {/* Tabs */}
+      {/* Stats */}
       <Card>
-        <div className="mb-6 flex gap-2">
-          <Button
-            variant={tab === "due" ? "primary" : "secondary"}
-            onClick={() => setTab("due")}
-          >
-            📋 Due Cards ({stats?.dueToday || 0})
+        <h3 className="mb-4 text-lg font-extrabold tracking-tight">Revision</h3>
+        {!stats ? (
+          <div className="h-20 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Tile icon="assignment" value={stats.dueToday} label="Due today" />
+            <Tile icon="workspace_premium" fill={1} value={stats.masteredCards} label="Mastered" />
+            <Tile icon="schedule" value={stats.overdueCards} label="Overdue" />
+            <Tile icon="style" value={stats.totalCards} label="Total cards" />
+          </div>
+        )}
+      </Card>
+
+      {/* Tabs + content */}
+      <Card>
+        <div className="mb-5 flex gap-2">
+          <Button variant={tab === "due" ? "primary" : "ghost"} className="gap-1.5" onClick={() => setTab("due")}>
+            <Icon name="assignment" size={18} /> Due ({stats?.dueToday || 0})
           </Button>
-          <Button
-            variant={tab === "all" ? "primary" : "secondary"}
-            onClick={() => setTab("all")}
-          >
-            🎯 All Cards ({stats?.totalCards || 0})
+          <Button variant={tab === "all" ? "primary" : "ghost"} className="gap-1.5" onClick={() => setTab("all")}>
+            <Icon name="style" size={18} /> All ({stats?.totalCards || 0})
           </Button>
         </div>
 
         {tab === "due" ? (
-          stats?.dueCards && stats.dueCards.length > 0 ? (
+          stats?.dueCards?.length ? (
             <div className="space-y-3">
               {stats.dueCards.map((card, idx) => {
                 const query = buildQuery(card.conceptName, card.topicGoal);
-                return <motion.div
-                  key={`${card.conceptName}-${idx}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="rounded-lg bg-gradient-to-r from-[var(--surface-2)] to-[var(--surface)] p-4 border border-[var(--border)]"
-                >
-                  <div className="mb-3 flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-lg">{card.conceptName}</h3>
-                      <p className="text-sm text-[var(--text-muted)]">{card.topicGoal}</p>
+                const saving = completingCards.includes(card.conceptName);
+                return (
+                  <motion.div
+                    key={`${card.conceptName}-${idx}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(idx, 8) * 0.04 }}
+                    className="rounded-2xl border-2 border-[var(--border)] bg-[var(--surface)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-extrabold text-[var(--text)]">{card.conceptName}</h3>
+                        <p className="truncate text-sm font-medium text-[var(--text-muted)]">{card.topicGoal}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-2xl font-extrabold text-[var(--accent)]">{(card.retentionPercent ?? 0).toFixed(0)}%</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Retention</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">{card.retentionPercent?.toFixed(0)}%</div>
-                      <div className="text-xs text-[var(--text-muted)]">Retention</div>
-                    </div>
-                  </div>
 
-                  {/* Progress Bar with animation */}
-                  <div className="mb-4">
-                    <motion.div
-                      className="h-2 rounded-full bg-[var(--surface)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: "100%" }}
-                      transition={{ duration: 0.3, delay: idx * 0.05 }}
-                    >
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
                       <motion.div
-                        className="h-2 rounded-full"
-                        style={{
-                          width: `${card.retentionPercent || 0}%`,
-                          background:
-                            (card.retentionPercent || 0) < 40
-                              ? "linear-gradient(90deg, #ef4444, #dc2626)"
-                              : (card.retentionPercent || 0) < 70
-                                ? "linear-gradient(90deg, #f59e0b, #d97706)"
-                                : "linear-gradient(90deg, #22c55e, #16a34a)",
-                        }}
+                        className="h-full rounded-full bg-[var(--accent)]"
                         initial={{ width: 0 }}
                         animate={{ width: `${card.retentionPercent || 0}%` }}
-                        transition={{ delay: idx * 0.05 + 0.2, duration: 0.5 }}
+                        transition={{ duration: 0.5 }}
                       />
-                    </motion.div>
-                  </div>
+                    </div>
 
-                  <div className="mb-4 grid grid-cols-3 gap-2 text-xs text-[var(--text-muted)]">
-                    <div>Interval: {card.intervalDays || 0} days</div>
-                    <div>Reps: {card.repetitions || 0}</div>
-                    <div>Last: {card.daysSinceLastReview || 0} days ago</div>
-                  </div>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-[var(--text-muted)]">
+                      <span>Interval: {card.intervalDays || 0}d</span>
+                      <span>Reps: {card.repetitions || 0}</span>
+                      <span>Last: {card.daysSinceLastReview || 0}d ago</span>
+                    </div>
 
-                  {card.overdue && (
-                    <motion.div
-                      className="mb-3 rounded bg-red-500/20 p-2 text-center text-sm font-semibold text-red-400"
-                      animate={{ scale: [1, 1.02, 1] }}
-                      transition={{ duration: 0.5, repeat: Infinity }}
-                    >
-                      ⚠️ {card.daysOverdue} days overdue!
-                    </motion.div>
-                  )}
+                    {card.overdue && (
+                      <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-[var(--error)]/10 px-3 py-2 text-sm font-bold text-[var(--error)]">
+                        <Icon name="warning" size={18} /> {card.daysOverdue} days overdue
+                      </div>
+                    )}
 
-                  <div className="mb-4 grid gap-2 sm:grid-cols-3">
-                    <Link to={`/learn?${query}`}>
-                      <Button className="w-full text-xs">Learn</Button>
-                    </Link>
-                    <Link to={`/quiz?${query}`}>
-                      <Button className="w-full text-xs" variant="secondary">Quiz</Button>
-                    </Link>
-                    <Link to={`/practice?${query}`}>
-                      <Button className="w-full text-xs" variant="secondary">Practice</Button>
-                    </Link>
-                  </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <Link to={`/space/learn?${query}`}>
+                        <Button className="w-full gap-1.5 px-0">
+                          <Icon name="menu_book" size={16} /> Learn
+                        </Button>
+                      </Link>
+                      <Link to={`/space/quiz?${query}`}>
+                        <Button variant="secondary" className="w-full gap-1.5 px-0">
+                          <Icon name="quiz" size={16} /> Quiz
+                        </Button>
+                      </Link>
+                      <Link to={`/space/practice?${query}`}>
+                        <Button variant="secondary" className="w-full gap-1.5 px-0">
+                          <Icon name="code" size={16} /> Practice
+                        </Button>
+                      </Link>
+                    </div>
 
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { quality: 0, label: "😵", color: "red" },
-                      { quality: 2, label: "😕", color: "orange" },
-                      { quality: 3, label: "😐", color: "yellow" },
-                      { quality: 4, label: "🙂", color: "green" },
-                      { quality: 5, label: "😄", color: "emerald" },
-                    ].map((q) => {
-                      return (
-                        <motion.div key={q.quality} whileHover={{ scale: 1.05 }}>
-                          <Button
-                            className="w-full text-xs"
-                            variant="secondary"
-                            disabled={completingCards.includes(card.conceptName)}
-                            onClick={() => handleComplete(card, q.quality)}
-                          >
-                            {completingCards.includes(card.conceptName) ? "Saving..." : q.label}
-                          </Button>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </motion.div>;
+                    <div className="mt-4 border-t-2 border-[var(--border)] pt-3">
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">How well did you recall it?</p>
+                      {saving ? (
+                        <p className="py-1 text-center text-sm font-bold text-[var(--text-muted)]">Saving…</p>
+                      ) : (
+                        <div className="grid grid-cols-5 gap-2">
+                          {QUALITIES.map((q) => (
+                            <Button
+                              key={q.quality}
+                              variant="ghost"
+                              className="w-full px-0"
+                              onClick={() => handleComplete(card, q.quality)}
+                            >
+                              <Icon name={q.icon} size={24} className="text-[var(--accent)]" />
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
               })}
             </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 p-8 text-center"
-            >
-              <div className="text-5xl mb-3">🎉</div>
-              <p className="text-xl font-semibold text-green-400">No revisions due today!</p>
-              <p className="text-sm text-[var(--text-muted)]">You are up to date. Come back tomorrow.</p>
-            </motion.div>
+            <EmptyState
+              icon="celebration"
+              iconClassName="text-[var(--accent)]"
+              iconSize={44}
+              title="No revisions due today!"
+              message="You're up to date. Keep moving forward."
+              action={
+                concept ? (
+                  <Link to={`/space/learn${query || ""}`}>
+                    <Button className="gap-1.5 active:scale-95">
+                      <Icon name="play_arrow" size={18} fill={1} /> Continue {concept.length > 24 ? `${concept.slice(0, 24)}…` : concept}
+                    </Button>
+                  </Link>
+                ) : null
+              }
+            />
           )
-        ) : (
+        ) : allCards.length ? (
           <div className="space-y-2">
-            {allCards.length > 0 ? (
-              allCards.map((card, idx) => (
-                <motion.div
-                  key={card.conceptName}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  className="grid grid-cols-5 gap-3 rounded-lg bg-[var(--surface-2)] p-3 text-sm hover:bg-[var(--surface)] transition-colors"
-                >
-                  <div className="font-medium truncate">{card.conceptName}</div>
-                  <div className="text-right text-[var(--text-muted)]">{card.retentionPercent?.toFixed(0) || 0}%</div>
-                  <div className="text-right text-[var(--text-muted)]">{card.nextReviewAt ? new Date(card.nextReviewAt).toLocaleDateString() : "-"}</div>
-                  <div className={`text-right font-semibold ${card.overdue ? "text-red-400" : card.status === "ACTIVE" ? "text-green-400" : "text-yellow-400"}`}>
-                    {card.status || "-"}
-                  </div>
-                  <div className="text-right text-[var(--text-muted)]">{card.repetitions || 0} reps</div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center text-[var(--text-muted)] py-8">No revision cards yet</div>
-            )}
+            {allCards.map((card, idx) => (
+              <motion.div
+                key={card.conceptName || idx}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(idx, 12) * 0.02 }}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-[var(--text)]">{card.conceptName}</p>
+                  <p className="text-xs font-medium text-[var(--text-muted)]">
+                    {card.nextReviewAt ? `Next: ${new Date(card.nextReviewAt).toLocaleDateString()}` : "—"} · {card.repetitions || 0} reps
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-extrabold text-[var(--accent)]">{(card.retentionPercent ?? 0).toFixed(0)}%</span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      card.overdue ? "bg-[var(--error)]/10 text-[var(--error)]" : "bg-[var(--surface)] text-[var(--text-muted)]"
+                    }`}
+                  >
+                    {card.status || "—"}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
           </div>
+        ) : (
+          <p className="py-8 text-center text-sm font-medium text-[var(--text-muted)]">No revision cards yet.</p>
         )}
       </Card>
     </div>

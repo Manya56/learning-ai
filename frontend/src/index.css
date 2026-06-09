@@ -1,18 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --surface-2: #242424;
-  --border: #2e2e2e;
-  --text: #e8e8e8;
-  --text-muted: #888888;
+  /* Bold-minimalist, Duolingo-style light theme.
+     One action color (green), one supportive gray, white canvas. */
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f7f7f7;
+  --border: #e5e5e5;
+  --text: #4b4b4b;
+  --text-muted: #afafaf;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-light: #6366f115;
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
+  --error-hover: #c63333;
   --easy: #22c55e;
   --medium: #f59e0b;
   --hard: #ef4444;

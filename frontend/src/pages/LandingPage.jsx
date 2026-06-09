@@ -1,90 +1,234 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Brain, Map, Target } from "lucide-react";
-import Card from "../components/ui/Card";
+import Icon from "../components/ui/Icon";
 import Button from "../components/ui/Button";
+import Logo from "../components/ui/Logo";
+import PublicNav from "../components/layout/PublicNav";
+
+const GOALS = ["anything.", "to code.", "Spanish.", "calculus.", "to dance."];
+
+// Types a word out, holds, deletes, moves to the next — looping.
+function useTypewriter(words, { typeMs = 75, deleteMs = 35, holdMs = 1500 } = {}) {
+  const [index, setIndex] = useState(0);
+  const [sub, setSub] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const word = words[index % words.length];
+    const atEnd = !deleting && sub === word.length;
+    const atStart = deleting && sub === 0;
+    const delay = atEnd ? holdMs : deleting ? deleteMs : typeMs;
+    const t = setTimeout(() => {
+      if (atEnd) setDeleting(true);
+      else if (atStart) {
+        setDeleting(false);
+        setIndex((i) => (i + 1) % words.length);
+      } else setSub((s) => s + (deleting ? -1 : 1));
+    }, delay);
+    return () => clearTimeout(t);
+  }, [sub, deleting, index, words, typeMs, deleteMs, holdMs]);
+
+  return words[index % words.length].slice(0, sub);
+}
+
+/* ── small building blocks ─────────────────────────────── */
+
+const Eyebrow = ({ children }) => (
+  <span className="inline-flex items-center gap-2 rounded-full bg-[var(--accent-light)] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[var(--accent-hover)]">
+    {children}
+  </span>
+);
+
+
+/* ── page-level data ───────────────────────────────────── */
+
+const TOPICS = [
+  { icon: "code", label: "Data Structures" },
+  { icon: "translate", label: "Spanish" },
+  { icon: "functions", label: "Calculus" },
+  { icon: "music_note", label: "Music Theory" },
+  { icon: "smart_toy", label: "Machine Learning" },
+  { icon: "record_voice_over", label: "Public Speaking" },
+  { icon: "restaurant", label: "Cooking" },
+  { icon: "fitness_center", label: "Fitness" },
+];
+
+const STEPS = [
+  { n: "01", icon: "flag", title: "Set a goal", copy: "Type anything, pick your level and pace." },
+  { n: "02", icon: "menu_book", title: "Learn + practice", copy: "Bite-sized lessons, then real exercises." },
+  { n: "03", icon: "quiz", title: "Quiz + revise", copy: "Adaptive checks and spaced repetition." },
+  { n: "04", icon: "trending_up", title: "Track + level up", copy: "Streaks, analytics, and XP keep you going." },
+];
+
+const BEFORE = ["20 open tabs, no idea what's next", "Watched the tutorial, can't rebuild it", "Quizzes test what you already know", "Forgot it all two weeks later"];
+const AFTER = ["One clear next step, every day", "Build real things with AI feedback", "Quizzes hunt the stuff you miss", "Spaced reviews lock it into memory"];
+
+const FAQ = [
+  { q: "Can it really teach non-technical stuff?", a: "Yes. From DSA and system design to languages, music theory, or salsa — the roadmap and quizzes generate around whatever you type." },
+  { q: "How is the roadmap personalized?", a: "You set your level and pace; the AI sequences topics for you and re-orders as your quiz and practice results come in." },
+  { q: "What's the AI feedback on practice like?", a: "It reviews your actual attempt, points to the specific line or step, and explains the fix — guided, not just pass/fail." },
+  { q: "Is it free?", a: "Start free, build your first roadmap, and take a lesson in minutes. No credit card needed." },
+];
+
+/* ── page ──────────────────────────────────────────────── */
 
 export default function LandingPage() {
+  const typed = useTypewriter(GOALS);
+  const [after, setAfter] = useState(false);
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#1b1f3a_0%,#0f0f0f_46%,#0b0b0b_100%)] px-4 py-8 text-[var(--text)]">
-      <div className="pointer-events-none absolute inset-0 opacity-60">
-        <div className="absolute left-[-8rem] top-20 h-72 w-72 rounded-full bg-[var(--accent)]/15 blur-3xl" />
-        <div className="absolute right-[-6rem] top-36 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/2 h-56 w-[40rem] -translate-x-1/2 rounded-full bg-[var(--accent)]/10 blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-[var(--surface)] text-[var(--text)]">
+      <PublicNav />
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col justify-center">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="mx-auto mb-5 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[var(--text-muted)] shadow-lg shadow-black/10 backdrop-blur">
-            Personalized learning paths, quizzes, and practice in one place
-          </div>
+      {/* Hero */}
+      <section className="mx-auto max-w-3xl px-4 pb-12 pt-16 text-center sm:pt-24">
+        <Eyebrow>One app · every goal</Eyebrow>
+        <h1 className="mt-6 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
+          Learn <span className="text-[var(--accent)]">{typed}</span>
+          <span className="ml-0.5 animate-pulse font-extrabold text-[var(--accent)]">|</span>
+        </h1>
+        <p className="mx-auto mt-5 max-w-xl text-base font-medium leading-7 text-[var(--text-muted)] sm:text-lg">
+          LearnAI builds you a personal roadmap, drills your weak spots with adaptive quizzes, reviews your code, and never lets you forget what you learned.
+        </p>
 
-          <h1 className="text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl">
-            LearnAI
-          </h1>
-
-          <div className="mt-5 flex justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-4 py-3 shadow-[0_0_40px_rgba(99,102,241,0.12)] backdrop-blur">
-            <div className="typewriter-line text-lg font-medium text-white sm:text-xl">
-              learn anything from DSA to Dance
-            </div>
-          </div>
-
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[var(--text-muted)] sm:text-lg">
-            AI-powered roadmaps, quizzes, and practice problems for any topic.
-            Build momentum faster with a clear path, guided feedback, and daily
-            progress that stays easy to follow.
-          </p>
-
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/register">
-              <Button className="min-w-40 px-6 py-3 text-base">Get Started</Button>
-            </Link>
-            <Link to="/login">
-              <Button variant="ghost" className="min-w-40 px-6 py-3 text-base">
-                Sign In
-              </Button>
-            </Link>
-          </div>
+        <div className="mt-8 flex justify-center">
+          <Link to="/register" className="w-full sm:w-auto">
+            <Button className="w-full px-7 py-3.5 text-base sm:w-auto sm:min-w-44">Start free</Button>
+          </Link>
         </div>
 
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
-          {[
-            {
-              icon: Map,
-              label: "Plan",
-              title: "Personalized Roadmap",
-              copy: "A guided plan that adapts to your current level and target outcome.",
-            },
-            {
-              icon: Target,
-              label: "Test",
-              title: "Adaptive Quizzes",
-              copy: "Short checkpoints that adjust difficulty and reinforce weak spots.",
-            },
-            {
-              icon: Brain,
-              label: "Ask",
-              title: "AI Mentor Aria",
-              copy: "Ask questions, get explanations, and keep moving without losing context.",
-            },
-          ].map((feature) => (
-            <Card
-              key={feature.title}
-              className="border-white/8 bg-white/[0.03] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur"
-            >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent)]/15 text-white ring-1 ring-[var(--accent)]/20">
-                <feature.icon className="h-6 w-6" />
+        <p className="mt-5 text-sm font-medium text-[var(--text-muted)]">
+          Already learning with us? <Link to="/login" className="font-bold text-[var(--accent-hover)] hover:underline">Sign in</Link>
+        </p>
+      </section>
+
+      {/* Breadth strip */}
+      <section className="border-y-2 border-[var(--border)] bg-[var(--surface-2)]/50">
+        <div className="mx-auto max-w-5xl px-4 py-10 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-[var(--text-muted)]">From your next interview to your next hobby</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {TOPICS.map((t) => (
+              <span key={t.label} className="flex items-center gap-1.5 rounded-full border-2 border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm font-bold">
+                <Icon name={t.icon} size={16} className="text-[var(--accent)]" /> {t.label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-5 text-sm font-bold text-[var(--text)]">If you can name it, LearnAI can map it.</p>
+        </div>
+      </section>
+
+      {/* How it flows */}
+      <section className="border-y-2 border-[var(--border)] bg-[var(--surface-2)]/50">
+        <div className="mx-auto max-w-6xl px-4 py-16">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight">Four steps, then it runs itself</h2>
+            <p className="mt-3 font-medium text-[var(--text-muted)]">And Aria is there for everything in between.</p>
+          </div>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((s) => (
+              <div key={s.title} className="rounded-2xl border-2 border-[var(--border)] bg-[var(--surface)] p-5">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent)] text-white shadow-[0_3px_0_0_var(--accent-hover)]">
+                  <Icon name={s.icon} size={22} />
+                </div>
+                <h3 className="text-base font-extrabold tracking-tight">{s.title}</h3>
+                <p className="mt-1 text-sm font-medium leading-6 text-[var(--text-muted)]">{s.copy}</p>
               </div>
-              <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
-              <p className="mt-1 text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                {feature.label}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                {feature.copy}
-              </p>
-            </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Before / After — section + card backgrounds flip with the toggle */}
+      <section
+        className={`border-y-2 transition-colors duration-300 ${
+          after ? "border-[var(--accent)] bg-[var(--accent)]" : "border-[var(--border)] bg-[var(--surface-2)]"
+        }`}
+      >
+        <div className="mx-auto max-w-3xl px-4 py-16">
+          <h2 className={`text-center text-3xl font-extrabold tracking-tight transition-colors duration-300 ${after ? "text-white" : "text-[var(--text)]"}`}>
+            From confused to confident
+          </h2>
+
+          {/* Toggle — under the title, not in the card */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <span className={`text-sm font-extrabold uppercase tracking-wide ${after ? "text-white/60" : "text-[var(--text)]"}`}>Before</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={after}
+              aria-label="Toggle before and after"
+              onClick={() => setAfter((v) => !v)}
+              className={`relative h-8 w-16 shrink-0 rounded-full border-2 transition-colors duration-300 ${
+                after ? "border-white/50 bg-white/25" : "border-[var(--border)] bg-[var(--surface)]"
+              }`}
+            >
+              <span
+                className={`absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full shadow-sm transition-all duration-300 ${
+                  after ? "left-[calc(100%-1.625rem)] bg-white" : "left-[2px] bg-[var(--accent)]"
+                }`}
+              />
+            </button>
+            <span className={`text-sm font-extrabold uppercase tracking-wide ${after ? "text-white" : "text-[var(--text-muted)]"}`}>After</span>
+          </div>
+
+          {/* Card — light gray when before, white when after; keeps the smiley */}
+          <div
+            className={`mx-auto mt-8 max-w-lg rounded-2xl border-2 border-[var(--border)] p-6 transition-colors duration-300 ${
+              after ? "bg-[var(--surface)]" : "bg-[var(--surface-2)]"
+            }`}
+          >
+            <p className={`mb-4 flex items-center gap-2 text-sm font-extrabold uppercase tracking-wide ${after ? "text-[var(--accent-hover)]" : "text-[var(--text-muted)]"}`}>
+              <Icon
+                name={after ? "sentiment_very_satisfied" : "sentiment_dissatisfied"}
+                size={20}
+                fill={after ? 1 : 0}
+                className={after ? "text-[var(--accent)]" : ""}
+              />
+              {after ? "After" : "Before"}
+            </p>
+            <ul className="space-y-2.5">
+              {(after ? AFTER : BEFORE).map((b) => (
+                <li key={b} className={`flex items-start gap-2 text-sm font-bold ${after ? "text-[var(--text)]" : "text-[var(--text-muted)]"}`}>
+                  <Icon
+                    name={after ? "check_circle" : "close"}
+                    size={18}
+                    fill={after ? 1 : 0}
+                    className={`mt-0.5 shrink-0 ${after ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
+                  />
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="mx-auto max-w-3xl px-4 py-16">
+        <h2 className="text-center text-3xl font-extrabold tracking-tight">Straight answers</h2>
+        <div className="mt-8 space-y-3">
+          {FAQ.map((f, i) => (
+            <details key={f.q} className="group rounded-2xl border-2 border-[var(--border)] bg-[var(--surface)] p-4" open={i === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-extrabold tracking-tight [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <Icon name="expand_more" size={20} className="shrink-0 text-[var(--text-muted)] transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 text-sm font-medium leading-6 text-[var(--text-muted)]">{f.a}</p>
+            </details>
           ))}
         </div>
-      </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t-2 border-[var(--border)]">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm font-medium text-[var(--text-muted)] sm:flex-row">
+          <Logo className="text-lg" />
+          <span>© LearnAI — learn anything, the smart way.</span>
+          <div className="flex gap-4">
+            <Link to="/login" className="hover:text-[var(--text)]">Sign in</Link>
+            <Link to="/register" className="hover:text-[var(--text)]">Register</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

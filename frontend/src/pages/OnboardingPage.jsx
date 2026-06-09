@@ -6,7 +6,11 @@ import { useProfileStore } from "../store/profileStore";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
-import AnimatedRoadmap from "../components/ui/AnimatedRoadmap";
+import Textarea from "../components/ui/Textarea";
+import Chip from "../components/ui/Chip";
+import Icon from "../components/ui/Icon";
+import Spinner from "../components/ui/Spinner";
+import RoadmapPath from "../components/ui/RoadmapPath";
 
 const goals = ["DSA", "Finance", "Social Media Marketing", "Music Theory", "Python", "Cooking"];
 const priorLevels = ["BEGINNER", "SOME_KNOWLEDGE", "INTERMEDIATE"];
@@ -88,170 +92,213 @@ export default function OnboardingPage() {
     }
   };
 
+  const errorCallout = error ? (
+    <div className="mb-4 flex items-start gap-2 rounded-2xl border-2 border-[var(--error)]/40 bg-[var(--error)]/5 p-3">
+      <Icon name="error" size={18} className="mt-0.5 text-[var(--error)]" />
+      <p className="text-sm font-medium text-[var(--error)]">{error}</p>
+    </div>
+  ) : null;
+
   return (
     <div className={containerClass}>
       <Card>
-        <p className="mb-4 text-sm text-[var(--text-muted)]">{stepLabel}</p>
+        {/* Step indicator — a progress bar that fills as you advance */}
+        <div className="mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--accent-hover)]">{stepLabel}</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest tabular-nums text-[var(--text-muted)]">
+              {Math.round((step / 4) * 100)}%
+            </p>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out"
+              style={{ width: `${(step / 4) * 100}%` }}
+            />
+          </div>
+        </div>
+
         {step === 1 && (
           <>
-            <h2 className="mb-4 text-2xl font-semibold">What do you want to learn?</h2>
+            <h2 className="mb-4 text-2xl font-extrabold tracking-tight">What do you want to learn?</h2>
             <Input label="Goal" value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} />
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap gap-2">
               {goals.map((goal) => (
-                <button key={goal} className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs" onClick={() => setForm({ ...form, goal })}>
+                <Chip key={goal} active={form.goal === goal} onClick={() => setForm({ ...form, goal })}>
                   {goal}
-                </button>
+                </Chip>
               ))}
             </div>
-            <label className="mb-3 block">
-              <span className="mb-1 block text-sm text-[var(--text-muted)]">Goal Description</span>
-              <textarea
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2"
+            <div className="mb-4">
+              <Textarea
+                label="Goal description"
+                className="min-h-24 resize-y"
+                placeholder="Tell us a bit more about your goal…"
                 value={form.goalDescription}
                 onChange={(e) => setForm({ ...form, goalDescription: e.target.value })}
               />
-            </label>
-            <Button onClick={() => setStep(2)}>Continue</Button>
+            </div>
+            <Button className="w-full gap-1.5" onClick={() => setStep(2)}>
+              Continue <Icon name="arrow_forward" size={18} />
+            </Button>
           </>
         )}
+
         {step === 2 && (
           <>
-            <h2 className="mb-4 text-2xl font-semibold">How much do you already know?</h2>
-            {error ? <p className="mb-3 rounded bg-red-500/10 p-2 text-sm text-red-400">{error}</p> : null}
+            <h2 className="mb-4 text-2xl font-extrabold tracking-tight">How much do you already know?</h2>
+            {errorCallout}
             <div className="mb-4 grid gap-2">
               {priorLevels.map((level, idx) => (
                 <button
                   key={level}
-                  className={`rounded-lg border p-3 text-left ${form.priorKnowledgeLevel === idx + 1 ? "border-[var(--accent)]" : "border-[var(--border)]"}`}
+                  type="button"
                   onClick={() => setForm({ ...form, priorKnowledgeLevel: idx + 1 })}
+                  className={`rounded-2xl border-2 p-4 text-left font-bold capitalize transition-colors active:scale-[0.99] ${
+                    form.priorKnowledgeLevel === idx + 1
+                      ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--text)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
                 >
-                  {level}
+                  {level.replace(/_/g, " ").toLowerCase()}
                 </button>
               ))}
             </div>
-            <Button onClick={startAssessment} disabled={loading}>
-              {loading ? "Loading quiz..." : "Continue"}
+            <Button className="w-full gap-1.5" onClick={startAssessment} disabled={loading}>
+              {loading ? (
+                <>
+                  <Icon name="progress_activity" size={18} className="animate-spin" /> Loading quiz…
+                </>
+              ) : (
+                <>
+                  Continue <Icon name="arrow_forward" size={18} />
+                </>
+              )}
             </Button>
           </>
         )}
+
         {step === 3 && currentQuestion && (
           <>
-            <h2 className="mb-3 text-xl font-semibold">Quick Assessment</h2>
-            <p className="mb-2 text-sm text-[var(--text-muted)]">
+            <h2 className="mb-1 text-xl font-extrabold tracking-tight">Quick assessment</h2>
+            <p className="mb-4 text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">
               Question {index + 1} of {questions.length}
             </p>
-            <p className="mb-3">{currentQuestion.question}</p>
+            <p className="mb-4 font-bold text-[var(--text)]">{currentQuestion.question}</p>
             <div className="space-y-2">
               {currentQuestion.options.map((opt, i) => (
                 <button
                   key={opt}
-                  className={`block w-full rounded-lg border p-2 text-left ${answers[index] === i ? "border-[var(--accent)] bg-[var(--accent-light)]" : "border-[var(--border)]"}`}
+                  type="button"
                   onClick={() => {
                     const next = [...answers];
                     next[index] = i;
                     setAnswers(next);
                   }}
+                  className={`block w-full rounded-2xl border-2 p-3.5 text-left font-bold transition-colors active:scale-[0.99] ${
+                    answers[index] === i
+                      ? "border-[var(--accent)] bg-[var(--accent-light)] text-[var(--text)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
                 >
                   {opt}
                 </button>
               ))}
             </div>
             <Button
-              className="mt-3"
+              className="mt-4 w-full gap-1.5"
               disabled={answers[index] == null}
               onClick={() => (index < questions.length - 1 ? setIndex(index + 1) : setStep(4))}
             >
-              {index < questions.length - 1 ? "Next Question" : "Generate Roadmap"}
+              {index < questions.length - 1 ? (
+                <>
+                  Next question <Icon name="arrow_forward" size={18} />
+                </>
+              ) : (
+                <>
+                  <Icon name="map" size={18} /> Generate roadmap
+                </>
+              )}
             </Button>
           </>
         )}
         {step === 3 && !currentQuestion && !loading ? (
-          <p className="text-sm text-red-400">Quiz questions were not available. Please go back and try again.</p>
+          <p className="text-sm font-medium text-[var(--error)]">Quiz questions were not available. Please go back and try again.</p>
         ) : null}
+
         {step === 4 && (
           <>
-            <div className="text-center mb-8">
-              <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                {loading ? "Building your personalized roadmap..." : "Your Learning Adventure Begins! 🚀"}
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-extrabold tracking-tight">
+                {loading ? (
+                  "Building your personalized roadmap…"
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    Your learning adventure begins! <Icon name="rocket_launch" size={28} className="text-[var(--accent)]" />
+                  </span>
+                )}
               </h2>
               {!loading && (
-                <p className="mt-3 text-lg text-slate-600 dark:text-slate-400">
-                  Here's your customized learning path with {roadmap?.topics?.length || 0} exciting topics to master
+                <p className="mt-2 text-sm font-medium text-[var(--text-muted)]">
+                  Here's your path with {roadmap?.topics?.length || 0} topics to master.
                 </p>
               )}
             </div>
 
-            {error ? (
-              <div className="mb-6 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4">
-                <p className="text-red-600 dark:text-red-400">{error}</p>
-              </div>
-            ) : null}
+            {errorCallout}
 
-            {roadmap?.topics?.length ? (
+            {loading ? (
+              <div className="py-12">
+                <Spinner size={36} label="Preparing your learning path…" />
+              </div>
+            ) : roadmap?.topics?.length ? (
               <>
-                {/* Hero Section */}
-                <div className="mb-8 rounded-3xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 p-8 text-white shadow-2xl">
-                  <div className="text-center">
-                    <div className="mb-4 text-6xl">🎯</div>
-                    <h3 className="text-2xl font-bold mb-2">Ready to Start Your Journey?</h3>
-                    <p className="text-indigo-100">
-                      Your personalized roadmap is designed just for you. Each topic builds upon the last,
-                      creating a smooth learning experience.
-                    </p>
+                {/* Hero */}
+                <div className="mb-6 rounded-2xl border-2 border-[var(--accent)] bg-[var(--accent-light)] p-6 text-center">
+                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)] text-white">
+                    <Icon name="target" size={30} fill={1} />
                   </div>
+                  <h3 className="text-lg font-extrabold tracking-tight">Ready to start your journey?</h3>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+                    Each topic builds on the last for a smooth learning experience.
+                  </p>
                 </div>
 
-                {/* Animated Roadmap with Topics and Subtopics */}
-                <Card className="rounded-3xl p-8 mb-8 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border-2 border-slate-200/50 dark:border-slate-700/50">
-                  <div className="text-center mb-6">
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Your Learning Roadmap</h3>
-                    <p className="text-slate-600 dark:text-slate-400">Topics and concepts you'll master along the way</p>
+                {/* Roadmap */}
+                <Card className="mb-6">
+                  <div className="mb-4 text-center">
+                    <h3 className="text-lg font-extrabold tracking-tight">Your learning roadmap</h3>
+                    <p className="text-sm font-medium text-[var(--text-muted)]">Topics and concepts you'll master along the way</p>
                   </div>
-
-                  <AnimatedRoadmap
+                  <RoadmapPath
                     topics={roadmap.topics.map((t) => ({
                       topicName: t.topicName,
                       status: "UNLOCKED",
                       progressPercent: 0,
                       concepts: t.concepts || [],
-                      completedConcepts: []
+                      completedConcepts: [],
                     }))}
-                    currentProgress={0}
-                    showStatus={false}
-                    showProgress={false}
-                    onboardingMode={true}
                   />
                 </Card>
 
-                {/* Call to Action */}
+                {/* CTA */}
                 <div className="text-center">
-                  <Button
-                    onClick={startLearning}
-                    disabled={navigating}
-                    className="px-12 py-4 text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-200"
-                  >
+                  <Button onClick={startLearning} disabled={navigating} className="w-full gap-2 sm:w-auto">
                     {navigating ? (
-                      <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Opening Your Dashboard...
-                      </div>
+                      <>
+                        <Icon name="progress_activity" size={18} className="animate-spin" /> Opening your dashboard…
+                      </>
                     ) : (
-                      <div className="flex items-center gap-3">
-                        🚀 Start Learning Now
-                      </div>
+                      <>
+                        <Icon name="rocket_launch" size={18} fill={1} /> Start learning now
+                      </>
                     )}
                   </Button>
-
-                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                    Don't worry, you can always review your roadmap later in your dashboard
+                  <p className="mt-3 text-sm font-medium text-[var(--text-muted)]">
+                    You can always review your roadmap later in your dashboard.
                   </p>
                 </div>
               </>
-            ) : !loading ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse"></div>
-                <p className="text-slate-600 dark:text-slate-400">Preparing your learning path...</p>
-              </div>
             ) : null}
           </>
         )}

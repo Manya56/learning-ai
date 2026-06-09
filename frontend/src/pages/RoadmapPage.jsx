@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { getRoadmapApi } from "../api/roadmap";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import AnimatedRoadmap from "../components/ui/AnimatedRoadmap";
+import RoadmapPath from "../components/ui/RoadmapPath";
+import Icon from "../components/ui/Icon";
 import { motion, AnimatePresence } from "framer-motion";
 
+const STATUS_META = {
+  COMPLETED: { label: "Completed", pill: "bg-[var(--accent-light)] text-[var(--accent-hover)]" },
+  IN_PROGRESS: { label: "In progress", pill: "bg-[var(--accent)] text-white" },
+  UNLOCKED: { label: "Unlocked", pill: "bg-[var(--surface-2)] text-[var(--text)]" },
+  LOCKED: { label: "Locked", pill: "bg-[var(--surface-2)] text-[var(--text-muted)]" },
+};
+
 export default function RoadmapPage() {
+  const navigate = useNavigate();
   const [roadmap, setRoadmap] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -15,155 +24,126 @@ export default function RoadmapPage() {
     getRoadmapApi().then(setRoadmap).catch(() => setRoadmap({ topics: [] }));
   }, []);
 
-  const completedCount = (roadmap?.topics || []).filter((t) => t.status === "COMPLETED").length;
+  const topics = roadmap?.topics || [];
+  const completedCount = topics.filter((t) => t.status === "COMPLETED").length;
+  const overallProgress = roadmap?.overallProgressPercent ?? 0;
 
+  // Click a topic → open the details popup (as before).
   const handleTopicSelect = (topicName) => {
-    const topic = (roadmap?.topics || []).find((t) => t.topicName === topicName);
+    const topic = topics.find((t) => t.topicName === topicName);
     if (topic) {
       setSelectedTopic(topic);
       setShowModal(true);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "COMPLETED":
-        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
-      case "IN_PROGRESS":
-        return "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300";
-      case "UNLOCKED":
-        return "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300";
-      default:
-        return "bg-slate-100 text-slate-800 dark:bg-slate-900/50 dark:text-slate-300";
-    }
-  };
+  const selectedMeta = STATUS_META[selectedTopic?.status] || STATUS_META.LOCKED;
+  const selectedLocked = (selectedTopic?.status || "LOCKED") === "LOCKED";
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5">
       {/* Header */}
-      <div className="rounded-3xl bg-gradient-to-r from-indigo-600 via-purple-700 to-pink-700 p-6 text-white shadow-2xl shadow-slate-900/30">
-        <h1 className="text-4xl font-bold tracking-tight">Your Learning Journey</h1>
-        <p className="mt-2 text-sm text-slate-200">
-          {completedCount} of {roadmap?.topics?.length || 0} topics completed • {roadmap?.overallProgressPercent || 0}% progress
-        </p>
-      </div>
-
-      {/* Animated Roadmap Journey */}
-      {roadmap?.topics && (
-        <Card className="rounded-3xl p-6 lg:p-8">
-          <AnimatedRoadmap
-            topics={roadmap.topics || []}
-            currentProgress={completedCount}
-            onTopicClick={handleTopicSelect}
+      <Card>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">Your Learning Journey</h1>
+            <p className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+              {completedCount} of {topics.length} topics completed
+            </p>
+          </div>
+          <span className="text-3xl font-extrabold text-[var(--accent)]">{overallProgress}%</span>
+        </div>
+        <div className="mt-4 h-3 overflow-hidden rounded-full bg-[var(--surface-2)]">
+          <motion.div
+            className="h-full rounded-full bg-[var(--accent)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${overallProgress}%` }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
           />
+        </div>
+      </Card>
+
+      {/* The roadmap path */}
+      {!roadmap ? (
+        <Card>
+          <div className="h-72 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
+        </Card>
+      ) : topics.length ? (
+        <Card>
+          <RoadmapPath topics={topics} onTopicClick={handleTopicSelect} />
+        </Card>
+      ) : (
+        <Card>
+          <p className="text-sm font-medium text-[var(--text-muted)]">No roadmap yet. Complete onboarding to generate your path.</p>
         </Card>
       )}
 
-      {/* Loading State */}
-      {!roadmap && (
-        <Card className="rounded-3xl p-8">
-          <div className="h-64 animate-pulse rounded-lg bg-slate-300 dark:bg-slate-700" />
-        </Card>
-      )}
-
-      {/* Topic Details Modal */}
+      {/* Topic details popup */}
       <AnimatePresence>
         {showModal && selectedTopic && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800"
+              exit={{ opacity: 0, scale: 0.96 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-[var(--border)] bg-[var(--surface)] p-6"
             >
-              <div className="p-6 lg:p-8">
-                {/* Header */}
-                <div className="mb-6 flex items-start justify-between">
-                  <div>
-                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{selectedTopic.topicName}</h2>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                      {selectedTopic.progressPercent || 0}% complete • {selectedTopic.concepts?.length || 0} concepts
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="rounded-full border border-slate-300 dark:border-slate-700 p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    ✕
-                  </button>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedMeta.pill}`}>{selectedMeta.label}</span>
+                  <h2 className="mt-3 text-2xl font-extrabold tracking-tight">{selectedTopic.topicName}</h2>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+                    {selectedTopic.concepts?.length || 0} concepts • {selectedTopic.progressPercent || 0}% complete
+                  </p>
                 </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="rounded-full border-2 border-[var(--border)] p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
 
-                {/* Status Badge */}
-                <div className="mb-6">
-                  <span className={`inline-block rounded-full px-4 py-2 text-sm font-semibold ${getStatusColor(selectedTopic.status)}`}>
-                    {selectedTopic.status || "LOCKED"}
-                  </span>
-                </div>
+              <div className="mb-6 h-3 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${selectedTopic.progressPercent || 0}%` }} />
+              </div>
 
-                {/* Progress Bar */}
-                <div className="mb-6">
-                  <div className="mb-2 flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <span>Progress</span>
-                    <span>{selectedTopic.progressPercent || 0}%</span>
-                  </div>
-                  <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-800">
-                    <motion.div
-                      className="h-3 rounded-full bg-gradient-to-r from-sky-500 to-emerald-500"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${selectedTopic.progressPercent || 0}%` }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
+              <h3 className="mb-3 text-sm font-extrabold uppercase tracking-wide text-[var(--text-muted)]">Concepts to master</h3>
+              <div className="mb-6 space-y-2">
+                {(selectedTopic.concepts || []).map((concept, idx) => {
+                  const done = (selectedTopic.completedConcepts || []).includes(concept);
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-3 rounded-xl border-2 p-3 ${
+                        done ? "border-[var(--accent)]/30 bg-[var(--accent-light)]" : "border-[var(--border)] bg-[var(--surface-2)]"
+                      }`}
+                    >
+                      <Icon name={done ? "check_circle" : "radio_button_unchecked"} size={20} fill={done ? 1 : 0} className={done ? "text-[var(--accent)]" : "text-[var(--text-muted)]"} />
+                      <span className={`font-bold ${done ? "text-[var(--accent-hover)]" : "text-[var(--text)]"}`}>{concept}</span>
+                    </div>
+                  );
+                })}
+                {(selectedTopic.concepts || []).length === 0 && (
+                  <p className="text-sm font-medium text-[var(--text-muted)]">No concepts listed for this topic.</p>
+                )}
+              </div>
 
-                {/* Concepts */}
-                <div className="mb-6">
-                  <h3 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">Concepts to Master</h3>
-                  <div className="space-y-2">
-                    {(selectedTopic.concepts || []).map((concept, idx) => {
-                      const done = (selectedTopic.completedConcepts || []).includes(concept);
-                      return (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className={`rounded-lg border-2 p-3 flex items-center gap-3 ${
-                            done
-                              ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30"
-                              : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/30"
-                          }`}
-                        >
-                          <span className="text-xl">{done ? "✅" : "⭕"}</span>
-                          <span className={`font-medium ${done ? "text-emerald-700 dark:text-emerald-300" : "text-slate-700 dark:text-slate-300"}`}>
-                            {concept}
-                          </span>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  {selectedTopic.status !== "LOCKED" && (
-                    <Link to={`/learn?concept=${encodeURIComponent(selectedTopic.nextConcept || "")}&topic=${encodeURIComponent(selectedTopic.topicName)}`} className="flex-1">
-                      <Button className="w-full">Learn This Topic</Button>
-                    </Link>
-                  )}
-                  {selectedTopic.status === "IN_PROGRESS" && (
-                    <Link to="/roadmap/current" className="flex-1">
-                      <Button variant="outline" className="w-full">Continue Current</Button>
-                    </Link>
-                  )}
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowModal(false)}
-                    className="w-full"
-                  >
-                    Close
+              {/* Action → enter the learning space */}
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {!selectedLocked && (
+                  <Button className="flex-1 gap-1.5" onClick={() => navigate("/space")}>
+                    <Icon name="play_arrow" size={18} fill={1} />
+                    {selectedTopic.status === "COMPLETED" ? "Review in space" : "Enter learning space"}
                   </Button>
-                </div>
+                )}
+                <Button variant="ghost" onClick={() => setShowModal(false)} className="w-full sm:w-auto">
+                  Close
+                </Button>
               </div>
             </motion.div>
           </div>
