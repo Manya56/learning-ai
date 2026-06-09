@@ -8,7 +8,6 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import AuthShell from "../components/layout/AuthShell";
-import { BookOpen, LayoutDashboard, ShieldCheck } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -64,41 +63,21 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      eyebrow="LearnAI"
-      title="Welcome back"
-      subtitle="Pick up where you left off with the same clean, focused experience from the homepage."
-      highlights={[
-        {
-          icon: LayoutDashboard,
-          title: "Fast access",
-          copy: "Jump directly back into your roadmap, quiz history, and mentor sessions.",
-        },
-        {
-          icon: ShieldCheck,
-          title: "Clear feedback",
-          copy: "Validation and loading states now match the rest of the app.",
-        },
-        {
-          icon: BookOpen,
-          title: "Consistent design",
-          copy: "The same glassy surfaces and accent-driven buttons used on the homepage.",
-        },
-      ]}
       footer={
         <>
-          Don’t have an account? <Link to="/register" className="text-(--accent) hover:underline">Create one</Link>
+          Don’t have an account? <Link to="/register" className="font-bold text-[var(--accent-hover)] hover:underline">Create one</Link>
         </>
       }
     >
       <Card className="w-full">
         <div className="mb-6">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-(--text-muted)">Sign in</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Access your learning dashboard</h2>
-          <p className="mt-2 text-sm leading-6 text-(--text-muted)">Use your LearnAI account to continue studying, reviewing, and practicing.</p>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[var(--text-muted)]">Sign in</p>
+          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-[var(--text)]">Access your learning dashboard</h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--text-muted)]">Use your LearnAI account to continue studying, reviewing, and practicing.</p>
         </div>
 
         {error ? (
-          <p className="mb-4 rounded-2xl border border-(--error)/30 bg-(--error)/10 px-4 py-3 text-sm text-red-200">
+          <p className="mb-4 rounded-2xl border-2 border-[var(--error)]/30 bg-[var(--error)]/10 px-4 py-3 text-sm font-bold text-[var(--error)]">
             {error}
           </p>
         ) : null}
@@ -130,14 +109,15 @@ export default function LoginPage() {
               }
             }}
           />
-          <Button className="mt-1 w-full py-3 text-base" disabled={loading}>
+          <div className="mb-3 text-right">
+            <Link to="/reset-password" className="text-xs font-bold text-[var(--accent-hover)] hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <Button className="w-full py-3 text-base" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
-
-        <Link to="/register" className="mt-5 block text-center text-sm text-(--text-muted) hover:text-white">
-          Need an account? <span className="text-(--accent)">Register</span>
-        </Link>
       </Card>
     </AuthShell>
   );

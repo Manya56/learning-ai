@@ -1,28 +1,21 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Map, BookOpen, Brain, User, CircleHelp, Code2, RefreshCcw, ChartNoAxesCombined, Trophy } from "lucide-react";
+import Icon from "../ui/Icon";
+import Logo from "../ui/Logo";
 import { logoutApi } from "../../api/auth";
 import { useAuthStore } from "../../store/authStore";
-import { useProfileStore } from "../../store/profileStore";
 
 const items = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/roadmap", label: "Roadmap", icon: Map },
-  { to: "/roadmap/current", label: "Current Topic", icon: Map },
-  { to: "/learn", label: "Learn", icon: BookOpen },
-  { to: "/quiz", label: "Quiz", icon: CircleHelp },
-  { to: "/practice", label: "Practice", icon: Code2 },
-  { to: "/mentor", label: "Mentor", icon: Brain },
-  { to: "/revision", label: "Revision", icon: RefreshCcw },
-  { to: "/analytics", label: "Analytics", icon: ChartNoAxesCombined },
-  { to: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { to: "/profile", label: "Profile", icon: User },
+  { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { to: "/roadmap", label: "Roadmap", icon: "map" },
+  { to: "/analytics", label: "Analytics", icon: "analytics" },
+  { to: "/leaderboard", label: "Leaderboard", icon: "leaderboard" },
+  { to: "/profile", label: "Profile", icon: "person" },
 ];
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
-  const revisionDueCount = useProfileStore((s) => s.revisionDueCount);
 
   const handleLogout = async () => {
     try {
@@ -36,11 +29,10 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden w-60 border-r border-[var(--border)] bg-[var(--surface)] p-4 md:block">
-      <h1 className="mb-6 text-xl font-semibold">LearnAI</h1>
-      <nav className="space-y-1">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r-2 border-[var(--border)] bg-[var(--surface)] p-4 md:flex">
+      <h1 className="mb-6"><Logo className="text-xl" /></h1>
+      <nav className="flex-1 space-y-1 overflow-y-auto">
         {items.map((item) => {
-          const Icon = item.icon;
           const active = location.pathname.startsWith(item.to);
           return (
             <Link
@@ -50,21 +42,16 @@ export default function Sidebar() {
                 active ? "bg-[var(--accent-light)] text-[var(--text)]" : "text-[var(--text-muted)]"
               }`}
             >
-              <Icon size={16} /> {item.label}
-              {item.to === "/revision" && revisionDueCount > 0 ? (
-                <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] text-white">
-                  {revisionDueCount}
-                </span>
-              ) : null}
+              <Icon name={item.icon} size={20} fill={active ? 1 : 0} /> {item.label}
             </Link>
           );
         })}
       </nav>
       <button
-        className="mt-8 text-sm text-[var(--error)]"
+        className="mt-4 flex items-center gap-2 rounded-xl border-2 border-[var(--border)] px-3 py-2 text-sm font-bold text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
         onClick={handleLogout}
       >
-        Logout
+        <Icon name="logout" size={18} /> Logout
       </button>
     </aside>
   );

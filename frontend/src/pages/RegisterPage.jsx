@@ -5,7 +5,6 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import AuthShell from "../components/layout/AuthShell";
-import { BookOpen, Layers3, ShieldCheck } from "lucide-react";
 import { generateOtpFromEmailAndTime } from "../utils/otp";
 
 export default function RegisterPage() {
@@ -101,41 +100,21 @@ export default function RegisterPage() {
 
   return (
     <AuthShell
-      eyebrow="LearnAI"
-      title="Create your account"
-      subtitle="Set up your profile once, then follow a learning experience that stays consistent from landing page to lesson."
-      highlights={[
-        {
-          icon: Layers3,
-          title: "Personal roadmap",
-          copy: "Get a study path tailored to your goals, starting level, and pace.",
-        },
-        {
-          icon: ShieldCheck,
-          title: "Better onboarding",
-          copy: "Improved field validation helps registration feel clearer and faster.",
-        },
-        {
-          icon: BookOpen,
-          title: "Unified styling",
-          copy: "The same surfaces, spacing, and accent colors carry through the app.",
-        },
-      ]}
       footer={
         <>
-          Already have an account? <Link to="/login" className="text-(--accent) hover:underline">Sign in</Link>
+          Already have an account? <Link to="/login" className="font-bold text-[var(--accent-hover)] hover:underline">Sign in</Link>
         </>
       }
     >
       <Card className="w-full">
         <div className="mb-6">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-(--text-muted)">Sign up</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Start your personalized learning flow</h2>
-          <p className="mt-2 text-sm leading-6 text-(--text-muted)">Create an account to generate your roadmap, verify your email, and unlock the full experience.</p>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[var(--text-muted)]">Sign up</p>
+          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-[var(--text)]">Start your personalized learning flow</h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--text-muted)]">Create an account to generate your roadmap, verify your email, and unlock the full experience.</p>
         </div>
 
         {error ? (
-          <p className="mb-4 rounded-2xl border border-(--error)/30 bg-(--error)/10 px-4 py-3 text-sm text-red-200">
+          <p className="mb-4 rounded-2xl border-2 border-[var(--error)]/30 bg-[var(--error)]/10 px-4 py-3 text-sm font-bold text-[var(--error)]">
             {error}
           </p>
         ) : null}
@@ -179,7 +158,7 @@ export default function RegisterPage() {
               }
             }}
           />
-          <Button className="mt-1 w-full py-3 text-base" disabled={loading}>
+          <Button className="w-full py-3 text-base" disabled={loading}>
             {loading ? "Sending OTP..." : "Create account"}
           </Button>
         </form>

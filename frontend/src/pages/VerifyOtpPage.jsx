@@ -6,6 +6,7 @@ import { useAuthStore } from "../store/authStore";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
+import AuthShell from "../components/layout/AuthShell";
 import { generateOtpFromEmailAndTime } from "../utils/otp";
 
 export default function VerifyOtpPage() {
@@ -113,39 +114,48 @@ export default function VerifyOtpPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <h2 className="mb-2 text-xl font-semibold">Verify OTP</h2>
-        <p className="mb-4 text-sm text-[var(--text-muted)]">
-          Enter the 6-digit OTP sent to <span className="font-medium text-[var(--text)]">{email || "your email"}</span>.
-        </p>
-        {info ? <p className="mb-3 rounded bg-emerald-500/10 p-2 text-sm text-emerald-400">{info}</p> : null}
-        {error ? <p className="mb-3 rounded bg-red-500/10 p-2 text-sm text-red-400">{error}</p> : null}
+    <AuthShell
+      footer={
+        <>
+          Wrong email? <Link to="/register" className="font-bold text-[var(--accent-hover)] hover:underline">Back to register</Link>
+        </>
+      }
+    >
+      <Card className="w-full">
+        <div className="mb-6">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[var(--text-muted)]">One-time code</p>
+          <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-[var(--text)]">Enter your OTP</h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--text-muted)]">
+            Sent to <span className="font-bold text-[var(--text)]">{email || "your email"}</span>.
+          </p>
+        </div>
+
+        {info ? (
+          <p className="mb-4 rounded-2xl border-2 border-[var(--accent)]/30 bg-[var(--accent-light)] px-4 py-3 text-sm font-bold text-[var(--accent-hover)]">{info}</p>
+        ) : null}
+        {error ? (
+          <p className="mb-4 rounded-2xl border-2 border-[var(--error)]/30 bg-[var(--error)]/10 px-4 py-3 text-sm font-bold text-[var(--error)]">{error}</p>
+        ) : null}
+
         <form onSubmit={onSubmit}>
           <Input
-            label="OTP"
+            label="6-digit code"
             value={otp}
             maxLength={6}
             inputMode="numeric"
             autoComplete="one-time-code"
+            className="text-center text-lg tracking-[0.5em]"
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
           />
-          <Button className="mt-2 w-full" disabled={loading}>
+          <Button className="w-full py-3 text-base" disabled={loading}>
             {loading ? "Verifying..." : "Verify OTP"}
           </Button>
         </form>
-        <button
-          type="button"
-          onClick={onResendOtp}
-          disabled={resendLoading}
-          className="mt-3 text-sm text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {resendLoading ? "Resending OTP..." : "Resend OTP"}
-        </button>
-        <Link to="/register" className="mt-3 block text-sm text-[var(--text-muted)]">
-          Back to Register
-        </Link>
+
+        <Button variant="ghost" className="mt-3 w-full" onClick={onResendOtp} disabled={resendLoading}>
+          {resendLoading ? "Resending..." : "Resend OTP"}
+        </Button>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

@@ -1,10 +1,11 @@
-export default function Input({ label, error, className = "", ...props }) {
+// Shared multiline field, matching <Input> styling.
+export default function Textarea({ label, error, className = "", ...props }) {
   return (
-    <label className="mb-4 block">
+    <label className="block">
       {label && (
         <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">{label}</span>
       )}
-      <input
+      <textarea
         className={`w-full rounded-xl border-2 bg-[var(--surface)] px-4 py-3 font-medium text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:ring-2 focus:ring-[var(--accent)]/20 ${
           error
             ? "border-[var(--error)] focus:border-[var(--error)] focus:ring-[var(--error)]/20"

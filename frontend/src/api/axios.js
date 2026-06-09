@@ -12,17 +12,9 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => {
-    // Temporary debug logging to inspect backend payloads during integration testing.
-    console.log(`[API OK] ${String(response?.config?.method || "GET").toUpperCase()} ${response?.config?.url}`, response?.data);
-    return response;
-  },
+  (response) => response,
   (error) => {
     const status = error?.response?.status;
-    console.log(
-      `[API ERR] ${String(error?.config?.method || "GET").toUpperCase()} ${error?.config?.url}`,
-      error?.response?.data || error?.message
-    );
     if (status === 401) {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
