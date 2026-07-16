@@ -53,11 +53,10 @@ export default function LoginPage() {
         throw profileError; 
       } 
     } 
-  } catch {
-    setError ("Something went wrong. Try again." ) ; 
-  } finally {
-    setLoading (false ) ; 
-  }
+  } catch (err) {
+  const message = err.response?.data?.message || "Invalid email or password. Please try again.";
+  setError(message);
+} finally {
    
   return (
     <AuthShell
