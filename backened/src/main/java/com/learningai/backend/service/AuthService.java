@@ -30,8 +30,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw AppException.conflict("Email already registered");
-        }
+            throw AppException.conflict("Email is already registered. Please sign in or use a different email.");        }
 
         User user = User.builder()
                 .fullName(request.getFullName())
