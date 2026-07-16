@@ -32,35 +32,33 @@ export default function LoginPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    if (!validateForm()) {
-      return;
-    }
-
-    setLoading(true);
+ const onSubmit = async (e) => {
+  e.preventDefault() ; 
+  setError ("" ) ; 
+  if (! validateForm () ) {
+    return ; 
+  } 
+  setLoading (true ) ; 
+  try {
+    const auth = await loginApi (form ) ; 
+    login (auth ) ; 
     try {
-      const auth = await loginApi(form);
-      login(auth);
-      try {
-        const profile = await getProfileApi();
-        setProfile(profile);
-        navigate("/dashboard");
-      } catch (profileError) {
-        if (profileError?.response?.status === 404) {
-          navigate("/onboarding");
-        } else {
-          throw profileError;
-        }
-      }
-    } catch {
-      setError("Something went wrong. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+      const profile = await getProfileApi () ; 
+      setProfile (profile ) ; 
+      navigate ("/dashboard" ) ; 
+    } catch (profileError ) {
+      if (profileError?. response ?. status === 404 ) {
+        navigate ("/onboarding" ) ; 
+      } else {
+        throw profileError; 
+      } 
+    } 
+  } catch {
+    setError ("Something went wrong. Try again." ) ; 
+  } finally {
+    setLoading (false ) ; 
+  }
+   
   return (
     <AuthShell
       footer={
