@@ -43,6 +43,7 @@ export default function LoginPage() {
     const auth = await loginApi (form ) ; 
     login (auth ) ; 
     try {
+<<<<<<< HEAD
       const profile = await getProfileApi () ; 
       setProfile (profile ) ; 
       navigate ("/dashboard" ) ; 
@@ -59,6 +60,31 @@ export default function LoginPage() {
 } finally {
    setLoading(false);
   };
+=======
+      const auth = await loginApi(form);
+      login(auth);
+      try {
+        const profile = await getProfileApi();
+        setProfile(profile);
+        navigate("/dashboard");
+      } catch (profileError) {
+        if (profileError?.response?.status === 404) {
+          navigate("/onboarding");
+        } else {
+          throw profileError;
+        }
+      }
+    } catch (err) {
+    console.error("Login Error:", err); 
+    const message = err.response?.data?.message || "Invalid email or password. Please try again.";
+    setError(message);
+  } finally {
+    setLoading(false);
+  }
+  };
+
+
+>>>>>>> a4e616c (fix: resolve syntax error and missing closing bracket in LoginPage)
   return (
     <AuthShell
       footer={
