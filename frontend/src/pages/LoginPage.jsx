@@ -58,6 +58,7 @@ export default function LoginPage() {
   setError(message);
 } finally {
    setLoading(false);
+}
   };
   return (
     <AuthShell
